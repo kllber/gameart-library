@@ -325,6 +325,9 @@ const I18N_EN = {
   '绑定失败': 'Bind failed',
   '关联失败': 'Association failed',
   '取消失败': 'Operation failed',
+  '创建桌面快捷方式': 'Create desktop shortcut',
+  '已创建桌面快捷方式：': 'Desktop shortcut created: ',
+  '创建失败': 'Failed to create',
   '清理失败': 'Cleanup failed',
   '请输入游戏名': 'Enter a game name',
   '请输入 API Key': 'Enter your API key',
@@ -2958,6 +2961,8 @@ async function openSettings(tab) {
     const a = await api('/api/assoc/status');
     const el = $('assocStatus');
     if (el) el.textContent = !a.supported ? T('（当前系统不支持）') : a.registered ? T('已关联 ✔') : T('未关联');
+    // 「创建桌面快捷方式」只在 Linux（有 desktopFile 信息）时出现
+    if ($('btnMakeShortcut')) $('btnMakeShortcut').hidden = !(a.supported && a.desktopFile);
   } catch (e) {
     /* ignore */
   }
@@ -3060,7 +3065,13 @@ function bind() {
       toast(T('已取消关联'));
       if ($('assocStatus')) $('assocStatus').textContent = T('未关联');
       if (r.warning && $('assocStatus')) $('assocStatus').textContent += ' · ' + r.warning;
+      if ($('btnMakeShortcut')) $('btnMakeShortcut').hidden = true;
     } else toast(r.error || T('取消失败'), true);
+  });
+  $('btnMakeShortcut').addEventListener('click', async () => {
+    const r = await post('/api/assoc/shortcut', {});
+    if (r.ok) toast(T('已创建桌面快捷方式：') + (r.path || ''));
+    else toast(r.error || T('创建失败'), true);
   });
 
   // 存储清理

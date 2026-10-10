@@ -291,6 +291,46 @@ function createWindow(port) {
   return win;
 }
 
+/* ---------------- 首次运行：询问是否创建桌面快捷方式（Linux / AppImage） ---------------- */
+async function maybeOfferDesktopShortcut() {
+  if (process.platform !== 'linux' || !process.env.APPIMAGE) return; // 只对「解压即用」的 AppImage 分发做
+  const dataDir = process.env.GAMEART_DATA_DIR || app.getPath('userData');
+  const marker = path.join(dataDir, '.shortcut-asked');
+  try {
+    if (fs.existsSync(marker)) return;
+    fs.mkdirSync(dataDir, { recursive: true });
+    fs.writeFileSync(marker, new Date().toISOString(), 'utf8');
+  } catch (e) {
+    return;
+  }
+  try {
+    const r = await dialog.showMessageBox(mainWindow || undefined, {
+      type: 'question',
+      buttons: ['创建', '暂不'],
+      defaultId: 0,
+      cancelId: 1,
+      title: '游戏艺术库',
+      message: '要在桌面创建一个「游戏艺术库」快捷方式吗？',
+      detail: '创建后可从桌面直接双击打开。\n也可以随时在开始菜单里找到「游戏艺术库」（右键可固定到任务栏）。',
+      noLink: true,
+    });
+    if (r.response === 0) {
+      const fileassoc = require('../src/fileassoc');
+      const res = await fileassoc.createDesktopShortcut();
+      dialog.showMessageBox(mainWindow || undefined, {
+        type: 'info',
+        buttons: ['好'],
+        title: '游戏艺术库',
+        message: '已创建桌面快捷方式',
+        detail: res.path,
+        noLink: true,
+      });
+    }
+  } catch (e) {
+    /* ignore */
+  }
+}
+
 /* ---------------- 生命周期 ---------------- */
 app.whenReady().then(async () => {
   Menu.setApplicationMenu(null); // 去掉默认菜单栏
@@ -341,6 +381,11 @@ app.whenReady().then(async () => {
     } catch (e) {
       /* ignore */
     }
+
+    // 首次运行（仅 Linux 的 AppImage 分发）：问一次要不要创建桌面快捷方式
+    setTimeout(() => {
+      maybeOfferDesktopShortcut().catch(() => {});
+    }, 1500);
   } catch (e) {
     dialog.showErrorBox('启动失败', String((e && e.message) || e));
     app.quit();

@@ -49,18 +49,14 @@ jobs:
           CSC_IDENTITY_AUTO_DISCOVERY: 'false'
           ELECTRON_BUILDER_CACHE: .cache/electron-builder
 
-      # 打成 .tar.gz：tar 会**保留可执行权限** → 用户解压出来的 AppImage 直接双击即可运行（无需 chmod）
-      - name: Package as .tar.gz (keeps the execute bit)
+      # 打成"解压即用"的 .tar.gz：里面有「游戏艺术库」文件夹（启动器 + 程序 + 图标 + 说明）
+      # tar 会保留执行权限 → 用户解压后直接双击即可（无需 chmod）
+      - name: Package as .tar.gz (folder + launcher + icon)
         run: |
-          cd dist
-          for f in *.AppImage; do
-            chmod +x "$f"
-            tar -czf "${f}.tar.gz" "$f"
-            echo "--- 归档内容（应显示 -rwxr-xr-x，即带执行权限）---"
-            tar -tvzf "${f}.tar.gz"
-            rm -f "$f"   # 不保留裸 AppImage（避免用户看到两种格式而困惑）
-          done
-          ls -lh
+          node tools/make-linux-targz.js dist
+          ls -lh dist
+          echo "--- 归档内容 ---"
+          tar -tzvf dist/*.tar.gz
 
       - name: Upload artifact
         uses: actions/upload-artifact@v4

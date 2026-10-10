@@ -121,13 +121,24 @@ Switch UI language (Chinese/English) anytime; theme, accent color, card size, an
 
 | Step | Action |
 |:--:|---|
-| **1** | Download **`GameArtLibrary-vX.Y.Z-linux-x86_64.AppImage.tar.gz`** |
-| **2** | **Extract it** (right-click → Extract) |
-| **3** | **Double-click** the `.AppImage` inside → it just runs |
+| **1** | Download **`GameArtLibrary-vX.Y.Z-linux-x86_64.tar.gz`** |
+| **2** | **Extract it** (right-click → Extract) → you get a folder named **“游戏艺术库”** |
+| **3** | Open it and **double-click the “游戏艺术库” launcher** → it just runs |
+
+Inside the extracted folder:
+
+```text
+📁 游戏艺术库/
+   ▶  游戏艺术库.desktop      ← double-click this (shows the app name + icon)
+      游戏艺术库.AppImage     ← the actual program (you can double-click it too)
+      游戏艺术库.png
+      使用说明（先看我）.txt
+```
 
 > [!TIP]
-> The extracted AppImage **already has execute permission**: **no commands, no install, no root**.
-> If your file manager drops the permission: right-click it → **Properties → Permissions** → tick “**Allow executing file as program**” (or run `chmod +x`).
+> Execute permission is already set: **no commands, no install, no root**.
+> The **first launch** asks whether to create a **desktop shortcut**; after that the app also appears in the **application menu** (right-click → pin to taskbar).
+> If anything still shows a default icon, just **log out and back in** once.
 
 | ✅ Desktop Mode | ✅ Both Steam builds | ✅ Data location |
 |:--|:--|:--|

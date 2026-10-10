@@ -570,6 +570,13 @@ async function handleApi(req, res, pathname, query) {
       return sendJson(res, 200, { ok: false, error: e.message });
     }
   }
+  if (pathname === '/api/assoc/shortcut' && req.method === 'POST') {
+    try {
+      return sendJson(res, 200, { ok: true, ...(await fileassoc.createDesktopShortcut()) });
+    } catch (e) {
+      return sendJson(res, 200, { ok: false, error: e.message });
+    }
+  }
 
   // ---- 开发调试：窗口截图 / 在渲染进程执行 JS（仅本地 Electron，用于自检 UI）----
   if (pathname === '/api/dev/shot' && req.method === 'GET') {

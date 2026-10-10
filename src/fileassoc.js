@@ -429,6 +429,50 @@ async function unregisterLinux() {
   return { ...linuxStatus(), warning };
 }
 
+/** 桌面目录（优先读 XDG user-dirs 配置；兼容中文/日文的桌面文件夹名） */
+function desktopDir() {
+  try {
+    const t = readText(path.join(xdgConfigHome(), 'user-dirs.dirs'));
+    const m = /XDG_DESKTOP_DIR="([^"]*)"/.exec(t);
+    if (m) return m[1].replace(/^\$HOME/, os.homedir());
+  } catch (e) {
+    /* ignore */
+  }
+  for (const c of ['Desktop', '桌面', 'デスクトップ']) {
+    const p = path.join(os.homedir(), c);
+    try {
+      if (fs.statSync(p).isDirectory()) return p;
+    } catch (e) {
+      /* ignore */
+    }
+  }
+  return path.join(os.homedir(), 'Desktop');
+}
+
+/**
+ * Linux：在桌面创建一个「游戏艺术库」快捷方式（复制已安装的 .desktop）。
+ * 会先确保关联/图标已就绪。
+ */
+async function createDesktopShortcut() {
+  if (!platform.IS_LINUX) throw new Error('创建桌面快捷方式仅支持 Linux');
+  let st = linuxStatus();
+  if (!st.registered || st.filesMatch === false || st.iconsInstalled === false) {
+    await registerLinux();
+    st = linuxStatus();
+  }
+  if (!fs.existsSync(st.desktopFile)) throw new Error('桌面项尚未生成');
+  const dir = desktopDir();
+  fs.mkdirSync(dir, { recursive: true });
+  const dest = path.join(dir, '游戏艺术库.desktop');
+  fs.copyFileSync(st.desktopFile, dest);
+  try {
+    fs.chmodSync(dest, 0o755);
+  } catch (e) {
+    /* ignore */
+  }
+  return { ok: true, path: dest };
+}
+
 /* ================= 对外 ================= */
 
 function getStatus() {
@@ -469,4 +513,4 @@ async function autoRegister() {
   }
 }
 
-module.exports = { getStatus, register, unregister, autoRegister, computeCommand, iconPath, PROGID, EXT, MIME, DESKTOP_ID, linuxPaths };
+module.exports = { getStatus, register, unregister, autoRegister, createDesktopShortcut, computeCommand, iconPath, PROGID, EXT, MIME, DESKTOP_ID, linuxPaths };

@@ -112,6 +112,18 @@ fs.rmSync(SANDBOX, { recursive: true, force: true });
   check('未关联时 autoRegister 会自动写入', a2.ok === true && !a2.skipped, a2);
   check('autoRegister 后 registered=true', fileassoc.getStatus().registered === true);
 
+  // 创建桌面快捷方式（把桌面目录指到测试沙箱，别写真实家目录）
+  fs.mkdirSync(process.env.XDG_CONFIG_HOME, { recursive: true });
+  fs.writeFileSync(
+    path.join(process.env.XDG_CONFIG_HOME, 'user-dirs.dirs'),
+    'XDG_DESKTOP_DIR="' + SANDBOX.split(path.sep).join('/') + '/desktop"\n',
+    'utf8'
+  );
+  const sc = await fileassoc.createDesktopShortcut();
+  check('创建桌面快捷方式返回路径', !!sc.path, sc);
+  check('  桌面项文件已生成', fs.existsSync(sc.path));
+  check('  桌面项与安装的一致', fs.readFileSync(sc.path, 'utf8') === fs.readFileSync(P.desktop, 'utf8'));
+
   fs.rmSync(SANDBOX, { recursive: true, force: true });
   console.log(failed === 0 ? '\n全部通过 ✅' : '\n有 ' + failed + ' 项失败 ❌');
   process.exit(failed === 0 ? 0 : 1);
