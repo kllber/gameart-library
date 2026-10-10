@@ -1,0 +1,493 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>游戏艺术库 · GameArt Library</title>
+  <link rel="icon" href="/favicon.png" />
+  <link rel="stylesheet" href="/style.css" />
+</head>
+<body>
+  <div class="bg-orbs" aria-hidden="true"></div>
+
+  <div id="welcome" class="welcome" hidden>
+    <div class="welcome-card">
+      <img class="logo big" src="/icon.png" alt="游戏艺术库" />
+      <h1>游戏艺术库</h1>
+      <p class="sub">GameArt Library · 选择或新建一个 .gameart 库文件</p>
+      <div class="welcome-actions">
+        <button class="btn primary" id="btnWsOpen">打开 .gameart 文件</button>
+        <button class="btn ghost" id="btnWsNew">新建 .gameart 文件</button>
+      </div>
+      <div id="wsRecentWrap" class="welcome-recent" hidden>
+        <div class="welcome-recent-title">最近打开</div>
+        <div id="wsRecent"></div>
+      </div>
+      <div id="wsError" class="welcome-error" hidden></div>
+      <div class="welcome-lang"><button class="link-btn" id="wsLang">English</button></div>
+    </div>
+  </div>
+
+  <div class="app" id="appRoot" hidden>
+    <!-- 左侧控制栏 -->
+    <aside class="sidebar">
+      <div class="side-brand">
+        <img class="logo" src="/icon.png" alt="游戏艺术库" />
+        <div>
+          <h1>游戏艺术库</h1>
+          <p>GameArt Library</p>
+        </div>
+      </div>
+
+      <div class="sidebar-scroll">
+        <div class="side-panel">
+          <div class="side-title">添加游戏</div>
+          <button class="btn primary block" id="btnSync">⟳ 从 Steam 库添加</button>
+          <button class="btn ghost block" id="btnAdd">＋ 手动添加</button>
+          <button class="btn ghost block" id="btnSearchAdd">＋ 搜索添加</button>
+        </div>
+
+        <div class="side-panel">
+          <div class="side-title">同步到 Steam</div>
+          <button class="btn block" id="btnApplyAll">⇩ 同步到 Steam 库</button>
+        </div>
+
+        <div class="side-panel">
+          <div class="side-title">分类</div>
+          <div class="filters vertical" id="catList">
+            <button class="chip active" data-cat="all">全部游戏</button>
+          </div>
+          <button class="btn ghost block" id="btnNewCat">＋ 新建分类</button>
+        </div>
+
+        <div class="side-panel">
+          <div class="side-title">回收站</div>
+          <button class="btn ghost block" id="btnRecycle"><span class="btn-label">🗑 打开回收站</span> <span class="muted" id="recycleCount"></span></button>
+        </div>
+      </div>
+
+      <div class="sidebar-bottom">
+        <div class="side-panel">
+          <div class="side-title">Steam 账号</div>
+          <div class="steam-acc" id="steamAccountInfo">未绑定</div>
+          <button class="btn ghost block" id="btnSettings">⚙ 设置 / 绑定账号</button>
+        </div>
+
+        <div class="side-panel stats">
+          <div class="side-title">状态</div>
+          <div class="stat"><span>库中游戏</span><b id="libCount">0</b></div>
+          <div class="stat"><span>艺术文件</span><b id="artCount">0</b></div>
+          <div class="stat"><span>默认图同步</span><b id="syncStatus">—</b></div>
+          <div class="stat"><span>游戏名同步</span><b id="nameStatus">—</b></div>
+        </div>
+      </div>
+    </aside>
+
+    <!-- 右侧游戏显示区 -->
+    <main class="main">
+      <div class="main-top">
+        <div class="search-wrap">
+          <span class="search-icon">⌕</span>
+          <input id="search" type="search" placeholder="搜索库中游戏…" />
+        </div>
+        <div class="sort-wrap">
+          <span class="sort-label">排序</span>
+          <div class="dropdown" id="sortDd">
+            <button class="dd-btn" id="sortDdBtn" type="button"><span id="sortDdLabel">添加时间</span><span class="caret">▾</span></button>
+            <div class="dd-menu" id="sortDdMenu" hidden>
+              <button class="dd-item" type="button" data-value="added">添加时间</button>
+              <button class="dd-item" type="button" data-value="name">名称</button>
+              <button class="dd-item" type="button" data-value="custom">自定义</button>
+            </div>
+          </div>
+          <span class="sort-hint" id="sortHint" hidden>按住左键拖动封面排序</span>
+        </div>
+      </div>
+      <div id="grid" class="game-grid"></div>
+      <div id="empty" class="empty" hidden>
+        <div class="onboard">
+          <section class="ob-step">
+            <h2>① 先绑定你的 Steam Web API</h2>
+            <p>读取你 Steam 账号拥有的游戏，并读取本机 Steam 数据以写入自定义封面。API 可免费在 Steam 内申请，本软件可绑定多个账号的 API。</p>
+            <button class="btn primary" id="obSteam">点击跳转设置相关页面</button>
+          </section>
+          <section class="ob-step">
+            <h2>② 再绑定你的 SteamGridDB API</h2>
+            <p>搜索并下载游戏封面 / 横向封面 / 大背景 / Logo / 图标等艺术作品。API 可免费在 SteamGridDB 官网申请，如没有其账号请先自行在官网登录。</p>
+            <button class="btn primary" id="obSgdb">点击跳转设置相关页面</button>
+          </section>
+          <section class="ob-step">
+            <h2>③ 最后添加游戏到你的艺术库</h2>
+            <p>从 Steam 库添加现有封面，或手动添加游戏后从 SteamGridDB 挑选封面。</p>
+            <div class="ob-actions">
+              <button class="btn primary" id="btnSync2">⟳ 从 Steam 库添加</button>
+              <button class="btn ghost" id="btnSearchAdd2">＋ 搜索添加</button>
+              <button class="btn ghost" id="btnManual2">＋ 手动添加</button>
+            </div>
+          </section>
+        </div>
+      </div>
+    </main>
+  </div>
+
+  <!-- 从 Steam 库添加 -->
+  <div id="syncModal" class="modal" hidden>
+    <div class="modal-card">
+      <button class="modal-close" data-close="syncModal">✕</button>
+      <div class="modal-head"><h2>从 Steam 库添加</h2><p id="syncSub"></p></div>
+      <div class="sync-tools">
+        <label class="check"><input type="checkbox" id="syncAll" /><span class="check-label">全选</span></label>
+        <input id="syncSearch" type="search" placeholder="筛选游戏名 / AppID…" />
+        <button class="btn ghost" id="btnSyncRefresh" title="重新拉取你拥有的游戏（买了新游戏后点这个）">⟳ 刷新</button>
+        <button class="btn primary" id="btnSyncImport">导入选中</button>
+      </div>
+      <div id="syncList" class="pick-list"></div>
+    </div>
+  </div>
+
+  <!-- 手动添加 -->
+  <div id="addModal" class="modal" hidden>
+    <div class="modal-card">
+      <button class="modal-close" data-close="addModal">✕</button>
+      <div class="modal-head"><h2>搜索添加</h2><p>搜索游戏 → 从 SteamGridDB 挑选封面 → 加入你的库</p></div>
+      <div class="sync-tools">
+        <input id="addSearch" type="search" placeholder="输入游戏名（英文更准），回车搜索…" />
+        <button class="btn primary" id="btnAddSearch">搜索</button>
+      </div>
+      <div id="addNotice" class="notice" hidden></div>
+      <div id="addResults" class="pick-list"></div>
+    </div>
+  </div>
+
+  <!-- 设置 -->
+  <div id="settingsModal" class="modal" hidden>
+    <div class="modal-card settings-card">
+      <button class="modal-close" data-close="settingsModal">✕</button>
+      <div class="settings-layout">
+        <nav class="settings-nav" id="settingsNav">
+          <div class="settings-nav-title">设置</div>
+          <button class="snav active" data-tab="general">语言</button>
+          <button class="snav" data-tab="appearance">个性化</button>
+          <button class="snav group" data-group="accounts"><span class="snav-label">绑定与账号</span><span class="caret">▾</span></button>
+          <div class="snav-sub" data-group="accounts" hidden>
+            <button class="snav sub" data-tab="sgdb">SteamGridDB API</button>
+            <button class="snav sub" data-tab="steam">Steam 账号</button>
+          </div>
+          <button class="snav" data-tab="library">库文件</button>
+          <button class="snav" data-tab="about">关于</button>
+        </nav>
+        <div class="settings-content">
+          <section class="spanel" data-panel="general">
+            <h3>语言</h3>
+            <div class="field">
+              <label>界面语言</label>
+              <select id="setLang">
+                <option value="zh">简体中文</option>
+                <option value="en">English</option>
+              </select>
+              <p class="hint">语言选择会保存，界面文案将逐步补齐。</p>
+            </div>
+            <div class="field">
+              <label>游戏名语言</label>
+              <select id="setGameLang">
+                <option value="zh">简体中文</option>
+                <option value="en">英语</option>
+              </select>
+              <p class="hint">选「简体中文」会显示游戏的中文名（从 Steam 商店获取并缓存）；没有中文名的仍显示英文。</p>
+            </div>
+            <div class="field">
+              <button class="btn ghost" id="btnFetchNames">拉取中文名（从 Steam 商店）</button>
+              <div class="hint" id="nameFetchHint">仅在需要时手动执行，不会影响启动速度。</div>
+            </div>
+          </section>
+
+          <section class="spanel" data-panel="appearance" hidden>
+            <h3>个性化</h3>
+            <div class="field">
+              <label>主题</label>
+              <div class="segmented" id="setTheme">
+                <button data-value="dark">深色</button>
+                <button data-value="light">浅色</button>
+              </div>
+            </div>
+            <div class="field">
+              <label>强调色</label>
+              <div class="swatches" id="setAccent">
+                <button class="swatch" data-value="cyan" style="--sw:#4cc9ff;--sw2:#b06bff" title="青紫"></button>
+                <button class="swatch" data-value="purple" style="--sw:#b06bff;--sw2:#ff6bd6" title="品红"></button>
+                <button class="swatch" data-value="green" style="--sw:#37e0a6;--sw2:#4cc9ff" title="青绿"></button>
+                <button class="swatch" data-value="orange" style="--sw:#ffb35c;--sw2:#ff7a7a" title="暖橙"></button>
+              </div>
+            </div>
+            <div class="field">
+              <label>游戏卡片大小</label>
+              <select id="setGridSize">
+                <option value="small">小</option>
+                <option value="medium">中</option>
+                <option value="large">大</option>
+              </select>
+            </div>
+            <div class="field">
+              <label>动图封面</label>
+              <select id="setAnimCovers">
+                <option value="auto">自动播放（更生动）</option>
+                <option value="hover">悬停才播放（更省性能）</option>
+              </select>
+              <p class="hint">「自动播放」会让主页的动图封面一直循环播放（只播屏幕内的、并限制同时播放数量）。动画很多仍觉得卡时，可切「悬停才播放」。</p>
+            </div>
+            <div class="field">
+              <button class="btn ghost" id="btnFetchPreviews">补全动图预览</button>
+              <div class="hint" id="previewFetchHint">为库里已有的动图补齐预览文件（需要 SteamGridDB API Key），之后主页即可流畅播放。</div>
+            </div>
+          </section>
+
+          <section class="spanel" data-panel="sgdb" hidden>
+            <h3>SteamGridDB API</h3>
+            <p class="hint" style="margin:-8px 0 16px">用途：搜索并下载游戏封面 / 横向封面 / 大背景 / Logo / 图标等艺术作品。需要你自己的 SteamGridDB API Key（免费申请）。</p>
+            <div class="field">
+              <label>API Key <span class="muted" id="sgdbState"></span></label>
+              <input id="apiKey" type="password" placeholder="粘贴 SteamGridDB API Key" />
+              <div class="row-inline">
+                <button class="btn primary" id="btnSaveKey">保存</button>
+                <button class="btn danger" id="btnClearKey">解绑</button>
+                <a class="link" href="https://www.steamgriddb.com/profile/preferences/api" target="_blank" rel="noopener">↗ 申请 SteamGridDB API Key</a>
+              </div>
+              <p class="hint">登录 SteamGridDB（Steam 账号）→ Preferences → API → 填个域名 → Generate。</p>
+            </div>
+            <div class="field">
+              <label class="check"><input type="checkbox" id="allowInsecureTLS" /><span class="check-label">证书失败时回退（公司代理 / 自签证书环境）</span></label>
+              <p class="hint">有些公司网络或抓包代理用自己的证书，会让下载图片报「self signed certificate」。勾选后遇到该情况会回退为不校验证书（仅用于抓取 SteamGridDB 的公开图片，不涉及账号密码）。默认已勾选。</p>
+            </div>
+          </section>
+
+          <section class="spanel" data-panel="steam" hidden>
+            <h3>Steam 账号（Web API）</h3>
+            <p class="hint" style="margin:-8px 0 16px">用途：读取你拥有的游戏（用于「从 Steam 库添加」），并读取本机 Steam 数据以写入自定义封面。需要 Steam Web API Key，且账号「游戏详情」设为公开。</p>
+            <h3 style="margin-top:8px"><span class="h3-label">已绑定</span> <span class="muted" id="steamAcctCount"></span></h3>
+            <div id="steamAccounts" class="acct-list"></div>
+            <div class="field">
+              <label>添加账号（本机账号可下拉选择）</label>
+              <input id="steamId" list="localUserList" placeholder="SteamID64 或 主页链接" />
+              <datalist id="localUserList"></datalist>
+              <input id="steamKey" type="password" placeholder="Steam Web API Key（一个 Key 可查多个公开账号）" />
+              <div class="row-inline">
+                <button class="btn primary" id="btnBindSteam">＋ 绑定并同步</button>
+                <button class="btn danger" id="btnUnbindSteam">全部解绑</button>
+                <a class="link" href="https://steamcommunity.com/dev/apikey" target="_blank" rel="noopener">↗ 申请 Steam Web API Key</a>
+              </div>
+              <div id="steamBindStatus" class="hint"></div>
+              <p class="hint">需在各账号 Steam「隐私设置 → 游戏详情」设为公开，否则同步不到游戏。</p>
+            </div>
+            <div class="field">
+              <label>Steam 安装路径</label>
+              <div id="setSteamPath">—</div>
+              <p class="hint">用于读取本机 Steam 数据、写入自定义封面。</p>
+            </div>
+          </section>
+
+          <section class="spanel" data-panel="library" hidden>
+            <h3>库文件</h3>
+            <div class="field"><label>当前库文件</label><code id="dbFile">—</code></div>
+            <div class="field"><label>库文件大小</label><div id="dbSize">—</div></div>
+            <div class="field"><label>数据位置</label><div class="hint">所有缓存与数据都在工程目录内，不写 C 盘。</div></div>
+            <div class="field"><button class="btn ghost" id="btnSwitchLib">切换 / 打开其他库文件</button></div>
+            <div class="field">
+              <label>.gameart 文件关联</label>
+              <div class="row-inline">
+                <button class="btn primary" id="btnAssocReg">关联到本软件</button>
+                <button class="btn ghost" id="btnAssocUnreg">取消关联</button>
+                <span class="hint" id="assocStatus"></span>
+              </div>
+              <p class="hint">关联后，双击 .gameart 文件即可用本软件打开该库（仅 Windows）。</p>
+            </div>
+            <div class="field">
+              <label>存储占用与清理</label>
+              <div class="hint" id="storageInfo">—</div>
+              <div class="row-inline">
+                <button class="btn ghost" id="btnCleanCache">清理默认图缓存</button>
+                <button class="btn ghost" id="btnCleanBackups">清理备份</button>
+                <button class="btn ghost" id="btnCleanTmp">清理临时文件</button>
+              </div>
+              <p class="hint">缓存/临时文件都在工程目录内（data/、.tmp/）；可用上面按钮释放空间。清理缓存/备份不影响 .gameart 库里的艺术作品。</p>
+            </div>
+          </section>
+
+          <section class="spanel" data-panel="about" hidden>
+            <h3>关于</h3>
+            <div class="field"><label>名称</label><div>游戏艺术库 · GameArt Library</div></div>
+            <div class="field"><label>版本</label><div id="aboutVersion">—</div></div>
+            <div class="field"><label>作者</label><div id="aboutAuthor">—</div></div>
+            <div class="field"><label>开源 / 许可</label><div id="aboutLicense">—</div></div>
+            <div class="field"><label>素材来源</label><div class="hint">本软件本身不提供任何艺术作品，游戏的各种艺术素材图片均来自用户自己账号的 SteamGridDB API 与 Steam CDN。</div></div>
+            <div class="field"><label>运行环境</label><div id="aboutRuntime">—</div></div>
+            <div class="field"><label>数据说明</label><div class="hint">仅管理你自己的艺术作品并写入 Steam 本地文件，不上传任何数据。</div></div>
+          </section>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- 游戏详情 -->
+  <div id="detailModal" class="modal" hidden>
+    <div class="modal-card">
+      <button class="modal-close" data-close="detailModal">✕</button>
+      <div class="modal-head">
+        <div class="modal-cover" id="detailCover"></div>
+        <div class="modal-head-text">
+          <h2 id="detailTitle"></h2>
+          <p id="detailSub"></p>
+          <div class="detail-actions">
+            <button class="btn primary" id="btnApplyOne">⇩ 同步到 Steam</button>
+            <button class="btn danger" id="btnRemoveGame">从库中移除</button>
+          </div>
+        </div>
+      </div>
+      <div id="detailBody" class="modal-body"></div>
+    </div>
+  </div>
+
+  <!-- SGDB 艺术选择 -->
+  <div id="artModal" class="modal" hidden>
+    <div class="modal-card">
+      <button class="modal-close" data-close="artModal">✕</button>
+      <div class="modal-head"><h2 id="artTitle">从 SteamGridDB 搜索</h2><p id="artSub"></p></div>
+      <div class="sync-tools">
+        <input id="artSearch" type="search" placeholder="搜索游戏名（可换成别的游戏）…" />
+        <button class="btn primary" id="btnArtSearch">搜索</button>
+      </div>
+      <div id="artResults" class="pick-list" hidden></div>
+      <div class="filters" id="artTabs"></div>
+      <div class="art-filters" id="artFilters" hidden title="「只看幽默/只看成人」= 只显示该类图片；有些游戏没有该类，勾选后会为空。动图同理。">
+        <label class="check"><input type="checkbox" id="afStatic" checked /><span class="check-label">静态</span></label>
+        <label class="check"><input type="checkbox" id="afAnimated" checked /><span class="check-label">动图</span></label>
+        <span class="art-filter-sep"></span>
+        <label class="check" title="勾选后只显示「幽默」类"><input type="checkbox" id="afHumor" /><span class="check-label">只看幽默</span></label>
+        <label class="check" title="勾选后只显示「成人」类"><input type="checkbox" id="afNsfw" /><span class="check-label">只看成人</span></label>
+        <label class="check" title="勾选后只显示「癫痫」类"><input type="checkbox" id="afEpilepsy" /><span class="check-label">只看癫痫</span></label>
+        <span class="muted" id="artPickCount"></span>
+      </div>
+      <div id="artGrid" class="art-grid"></div>
+      <div id="artStatus" class="art-status" hidden></div>
+      <div class="art-more-wrap"><button class="btn ghost" id="btnArtMore" hidden>加载更多</button></div>
+    </div>
+  </div>
+
+  <!-- 添加方式选择 -->
+  <div id="addChoiceModal" class="modal" hidden>
+    <div class="modal-card narrow">
+      <button class="modal-close" data-close="addChoiceModal">✕</button>
+      <div class="modal-head"><h2 id="choiceTitle">添加封面</h2><p id="choiceSub"></p></div>
+      <div class="choice-actions">
+        <button class="btn primary" id="choiceSgdb">从 SteamGridDB 添加</button>
+        <button class="btn ghost" id="choiceImport">导入图片添加</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- 裁切 -->
+  <div id="cropModal" class="modal" hidden>
+    <div class="modal-card narrow">
+      <button class="modal-close" data-close="cropModal">✕</button>
+      <div class="modal-head"><h2 id="cropTitle">裁切</h2><p id="cropSub"></p></div>
+      <div id="cropStage" class="crop-stage"><img id="cropImg" alt="" draggable="false"></div>
+      <div class="crop-controls">
+        <label>缩放</label>
+        <input id="cropZoom" type="range" min="1" max="4" step="0.01" value="1" />
+        <button class="btn ghost" id="btnCropReset">重置</button>
+      </div>
+      <div class="detail-actions">
+        <button class="btn primary" id="btnCropSave">保存到库</button>
+        <button class="btn ghost" data-close="cropModal">取消</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- 管理分类游戏（批量） -->
+  <div id="catManageModal" class="modal" hidden>
+    <div class="modal-card">
+      <button class="modal-close" data-close="catManageModal">✕</button>
+      <div class="modal-head"><h2 id="catManageTitle">批量添加</h2><p>勾选要放进该分类的游戏（可批量）</p></div>
+      <div class="sync-tools">
+        <label class="check"><input type="checkbox" id="catManageAll" /><span class="check-label">全选</span></label>
+        <input id="catManageSearch" type="search" placeholder="筛选游戏名 / AppID…" />
+        <button class="btn primary" id="btnCatManageSave">保存</button>
+      </div>
+      <div id="catManageList" class="pick-list"></div>
+    </div>
+  </div>
+
+  <div id="catMenu" class="cat-menu" hidden>
+    <button id="catMenuRename">✎ 重命名</button>
+    <button id="catMenuManage">⊞ 批量添加游戏</button>
+  </div>
+
+  <div id="cardMenu" class="cat-menu" hidden>
+    <button id="cardMenuGroups">⊞ 更改分组</button>
+    <button id="cardMenuAppid">✎ 编辑 Steam App ID</button>
+    <button id="cardMenuDelete" class="danger-item">🗑 删除（移入回收站）</button>
+  </div>
+
+  <div id="gameGroupsModal" class="modal" hidden>
+    <div class="modal-card narrow">
+      <button class="modal-close" data-close="gameGroupsModal">✕</button>
+      <div class="modal-head"><h2 id="gameGroupsTitle">更改分组</h2><p>可多选（一个游戏可属于多个分组）</p></div>
+      <div id="gameGroupsList" class="pick-list"></div>
+      <div class="detail-actions" style="margin-top:16px">
+        <button class="btn primary" id="btnGameGroupsSave">保存</button>
+        <button class="btn ghost" data-close="gameGroupsModal">取消</button>
+      </div>
+    </div>
+  </div>
+
+  <div id="toast" class="toast" hidden></div>
+
+  <!-- 回收站 -->
+  <div id="recycleModal" class="modal" hidden>
+    <div class="modal-card">
+      <button class="modal-close" data-close="recycleModal">✕</button>
+      <div class="modal-head"><h2>回收站</h2><p>删除的游戏会先放到这里；可「恢复」或「彻底删除」。</p></div>
+      <div id="recycleNotice" class="notice" hidden></div>
+      <div id="recycleList" class="pick-list"></div>
+    </div>
+  </div>
+
+  <!-- 手动添加（新建游戏 + 本地图片） -->
+  <div id="manualModal" class="modal" hidden>
+    <div class="modal-card">
+      <button class="modal-close" data-close="manualModal">✕</button>
+      <div class="modal-head"><h2>手动添加</h2><p>自己新建游戏，并导入本地的艺术图</p></div>
+      <div class="form-row">
+        <label>游戏名</label>
+        <input id="manualName" type="text" placeholder="输入游戏名" />
+      </div>
+      <div class="form-row">
+        <label>App ID（可选）</label>
+        <input id="manualAppid" type="text" placeholder="Steam AppID" />
+        <p class="hint">注意：不输入 Steam 的 App ID，则无法把该游戏同步到 Steam 库。</p>
+      </div>
+      <div class="manual-types" id="manualTypes"></div>
+      <div class="detail-actions" style="margin-top:18px">
+        <button class="btn primary" id="btnManualSave">保存到库</button>
+        <button class="btn ghost" data-close="manualModal">取消</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- 同步到 Steam 库（预览确认） -->
+  <div id="applyModal" class="modal" hidden>
+    <div class="modal-card">
+      <button class="modal-close" data-close="applyModal">✕</button>
+      <div class="modal-head"><h2 id="applyTitle">同步到 Steam 库</h2><p id="applySub"></p></div>
+      <div id="applyWarn" class="notice" hidden></div>
+      <div class="sync-tools">
+        <label class="check"><input type="checkbox" id="applyAll" checked /><span class="check-label">全选</span></label>
+        <input id="applySearch" type="search" placeholder="筛选游戏名 / AppID…" />
+        <button class="btn primary" id="btnApplyConfirm">确认同步</button>
+      </div>
+      <div id="applyBody" class="pick-list"></div>
+    </div>
+  </div>
+
+  <script src="/app.js"></script>
+</body>
+</html>

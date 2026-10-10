@@ -1,0 +1,28 @@
+# ---- 缓存与临时文件（绝不进版本库）----
+.cache/
+.tmp/
+
+# ---- 依赖 ----
+node_modules/
+
+# ---- 构建产物 ----
+dist/
+build/
+out/
+target/
+# 便携分发版：体积大（含 234MB 的 electron.exe，超过 GitHub 单文件 100MB 限制）
+# 用 tools/build-dist.js 现做，或把打包好的 zip 作为 GitHub Releases 附件上传
+分发版本/
+
+# ---- 用户数据（体积大，勿提交）----
+*.gameart
+data/
+
+# ---- 系统 / 编辑器 ----
+.DS_Store
+Thumbs.db
+.idea/
+.vscode/*
+!.vscode/extensions.json
+
+# 注意：维护约定.md 始终保留，不忽略

@@ -1,0 +1,47 @@
+{
+  "name": "gameart-library",
+  "version": "0.87.0",
+  "private": true,
+  "description": "游戏艺术库 · GameArt Library —— 管理并一键同步游戏自定义艺术作品到 Steam",
+  "main": "desktop/main.js",
+  "scripts": {
+    "start": "node src/server.js",
+    "desktop": "electron .",
+    "dist": "electron-builder --win portable"
+  },
+  "devDependencies": {
+    "electron": "^44.7.0",
+    "electron-builder": "^25.1.8"
+  },
+  "build": {
+    "appId": "com.gameartlibrary.desktop",
+    "productName": "GameArtLibrary",
+    "artifactName": "GameArtLibrary-${version}-portable.${ext}",
+    "directories": {
+      "output": "dist"
+    },
+    "files": [
+      "desktop/**/*",
+      "src/**/*",
+      "public/**/*",
+      "icon.ico",
+      "icon-gameart.ico",
+      "package.json"
+    ],
+    "extraResources": [
+      {
+        "from": "icon-gameart.ico",
+        "to": "icon-gameart.ico"
+      }
+    ],
+    "win": {
+      "target": [
+        "portable"
+      ],
+      "icon": "icon.ico"
+    },
+    "portable": {
+      "unicode": true
+    }
+  }
+}
