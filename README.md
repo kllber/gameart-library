@@ -9,7 +9,7 @@
 <p>
   <img alt="version" src="https://img.shields.io/badge/version-0.88-blue">
   <img alt="license" src="https://img.shields.io/badge/license-Apache--2.0-green">
-  <img alt="platform" src="https://img.shields.io/badge/platform-Windows%2010%20%7C%2011-0078D6">
+  <img alt="platform" src="https://img.shields.io/badge/platform-Windows%20%7C%20Linux-0078D6">
   <img alt="electron" src="https://img.shields.io/badge/electron-44-47848F">
   <img alt="downloads" src="https://img.shields.io/github/downloads/kllber/gameart-library/total?color=purple">
 </p>
@@ -95,17 +95,38 @@
 - **中文游戏名**：从 Steam 商店按需拉取并缓存。
 - **缓存友好**：所有缓存 / 备份 / 临时文件都在程序目录内（**不写 C 盘**），可一键清理。
 - **免安装便携版**：官方 Release 解压即用。
-- **`.gameart` 文件关联**：双击库文件即可用本软件打开。
+- **`.gameart` 文件关联**：双击库文件即可用本软件打开（**Windows / Linux 均支持**）。
 
 ## 🚀 下载与安装
 
-1. 打开 **[Releases](https://github.com/kllber/gameart-library/releases/latest)**，下载最新的 **`GameArtLibrary-vX.Y.Z-win-x64.zip`**；
+打开 **[Releases](https://github.com/kllber/gameart-library/releases/latest)**，按你的系统下载对应文件。
+
+### 🪟 Windows 10 / 11（64 位）
+
+1. 下载 **`GameArtLibrary-vX.Y.Z-win-x64.zip`**；
 2. **解压**到任意目录；
 3. 双击解压出来的 **`游戏艺术库.exe`**。
 
 - ✅ **无需安装**：运行环境已打包在文件夹内，**不需要 Node.js 或任何依赖**。
-- ✅ **系统要求**：64 位 **Windows 10 / 11**。
 - ✅ **缓存/临时都在该文件夹内**（`data\`、`tmp\`），**不写 C 盘**；想卸载，删掉整个文件夹即可。
+
+### 🐧 Linux（SteamOS / Bazzite / Fedora / Ubuntu …）
+
+1. 下载 **`GameArtLibrary-vX.Y.Z-linux-x86_64.AppImage`**；
+2. 赋予可执行权限并运行：
+
+   ```bash
+   chmod +x GameArtLibrary-*.AppImage
+   ./GameArtLibrary-*.AppImage
+   ```
+
+   （或在文件管理器里右键 → 属性 → 勾选「允许作为程序执行」，然后双击）
+
+- ✅ **桌面模式（Desktop Mode）** 运行；**SteamOS / Bazzite 的原生版与 Flatpak 版 Steam 都支持**。
+- ✅ 数据目录：`~/.local/share/gameart-library`（缓存 `~/.cache/gameart-library`）；不需要 root、不写系统目录。
+- ⚠️ **图标（icon）需要重启一次 Steam 后才会显示**；封面 / 大背景 / Logo 即时生效。
+- 💡 系统若没有 FUSE：`APPIMAGE_EXTRACT_AND_RUN=1 ./GameArtLibrary-*.AppImage`。
+- 💡 设置 → **库文件 → 「关联到本软件」**，即可让**双击 `.gameart` 直接打开**该库。
 
 ### 首次使用（三步）
 
@@ -141,15 +162,17 @@ dev.cmd node tools\build-dist.js   :: 一键生成「免安装便携分发版」
 
 | 位置 | 内容 |
 |---|---|
-| 你的 `*.gameart` | **艺术图 + 游戏 + 分类 + 排序 + 设置**（单文件，图片内嵌） |
-| `data\` | 最近打开、默认图缓存、同步前备份、Electron 缓存 |
-| `tmp\` | 同步/下载的临时文件（自动清理） |
+| 你的 `*.gameart` | **艺术图 + 游戏 + 分类 + 排序 + 设置**（单文件，图片内嵌；Windows 与 Linux **互通**） |
+| `data\` ／ `~/.local/share/gameart-library` | 最近打开、默认图缓存、同步前备份、Electron 缓存 |
+| `tmp\` ／ `~/.cache/gameart-library` | 同步/下载的临时文件（自动清理） |
 
 ## ❓ 常见问题
 
 - **同步后 Steam 没变？** 重启一次 Steam 即可（封面由 Steam 缓存）。
+- **图标（icon）改了但不显示？** 官方 Steam 游戏的图标来自 Steam 的图标缓存，**必须重启一次 Steam** 才会显示；非 Steam 快捷方式同理。
 - **抓不到封面 / 报证书错误？** 公司代理环境请在 设置 → SteamGridDB API 勾选「**证书失败时回退**」。
 - **必须联网吗？** 抓封面需要联网；已入库的艺术图**离线也能看、能同步**。
+- **`.gameart` 能在两个系统间通用吗？** 能，文件格式完全一致，直接复制即可。
 
 ## ⚖️ 许可与声明
 

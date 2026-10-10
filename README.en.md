@@ -9,7 +9,7 @@
 <p>
   <img alt="version" src="https://img.shields.io/badge/version-0.88-blue">
   <img alt="license" src="https://img.shields.io/badge/license-Apache--2.0-green">
-  <img alt="platform" src="https://img.shields.io/badge/platform-Windows%2010%20%7C%2011-0078D6">
+  <img alt="platform" src="https://img.shields.io/badge/platform-Windows%20%7C%20Linux-0078D6">
   <img alt="electron" src="https://img.shields.io/badge/electron-44-47848F">
   <img alt="downloads" src="https://img.shields.io/github/downloads/kllber/gameart-library/total?color=purple">
 </p>
@@ -95,17 +95,38 @@ Switch UI language (Chinese/English) anytime; theme, accent color, card size, an
 - **Chinese game names** fetched from the Steam store on demand.
 - **Cache-friendly**: all caches / backups / temp live inside the app folder (**never on C:**), with one-click cleanup.
 - **Portable, no install**: the official Release is a run-anywhere zip.
-- **`.gameart` file association**: double-click a library file to open it in the app.
+- **`.gameart` file association**: double-click a library file to open it in the app (**Windows & Linux**).
 
 ## 🚀 Download
 
-1. Grab **`GameArtLibrary-vX.Y.Z-win-x64.zip`** from **[Releases](https://github.com/kllber/gameart-library/releases/latest)**;
+Grab the file for your OS from **[Releases](https://github.com/kllber/gameart-library/releases/latest)**.
+
+### 🪟 Windows 10 / 11 (64-bit)
+
+1. Download **`GameArtLibrary-vX.Y.Z-win-x64.zip`**;
 2. Unzip anywhere;
 3. Run **`游戏艺术库.exe`**.
 
 - ✅ **No installation** — the runtime is bundled, **no Node.js or dependencies required**.
-- ✅ **Requirements**: 64-bit **Windows 10 / 11**.
 - ✅ **Caches/temp stay inside the folder** (`data\`, `tmp\`) — **nothing is written to C:**. Uninstall by deleting the folder.
+
+### 🐧 Linux (SteamOS / Bazzite / Fedora / Ubuntu …)
+
+1. Download **`GameArtLibrary-vX.Y.Z-linux-x86_64.AppImage`**;
+2. Make it executable and run:
+
+   ```bash
+   chmod +x GameArtLibrary-*.AppImage
+   ./GameArtLibrary-*.AppImage
+   ```
+
+   (or right-click → Properties → allow executing as a program, then double-click)
+
+- ✅ Runs in **Desktop Mode**; **both the native and the Flatpak Steam are supported** (SteamOS / Bazzite).
+- ✅ Data goes to `~/.local/share/gameart-library` (cache: `~/.cache/gameart-library`) — no root, nothing written to system dirs.
+- ⚠️ **Icons appear only after restarting Steam once**; covers / heroes / logos apply immediately.
+- 💡 No FUSE? Run with `APPIMAGE_EXTRACT_AND_RUN=1 ./GameArtLibrary-*.AppImage`.
+- 💡 Settings → **Library → “Associate with this app”** makes **double-clicking a `.gameart` open it** directly.
 
 ### Quick start (3 steps)
 
@@ -141,15 +162,17 @@ dev.cmd node tools\build-dist.js   :: build the portable distribution (分发版
 
 | Location | Contents |
 |---|---|
-| your `*.gameart` | **artwork + games + categories + order + settings** (single file, images embedded) |
-| `data\` | recent files, default-art cache, pre-sync backups, Electron cache |
-| `tmp\` | temp files for sync/download (auto-cleaned) |
+| your `*.gameart` | **artwork + games + categories + order + settings** (single file, images embedded; **interoperable** between Windows and Linux) |
+| `data\` ／ `~/.local/share/gameart-library` | recent files, default-art cache, pre-sync backups, Electron cache |
+| `tmp\` ／ `~/.cache/gameart-library` | temp files for sync/download (auto-cleaned) |
 
 ## ❓ FAQ
 
 - **Steam didn't change after syncing?** Restart Steam once (covers are cached by Steam).
+- **Icon changed but not showing?** For official Steam games the icon lives in Steam's icon cache — **restart Steam once**. Same for non-Steam shortcuts.
 - **Can't fetch art / certificate error?** On corporate proxies, enable “**Fallback on certificate failure**” in Settings → SteamGridDB API.
 - **Does it need internet?** Fetching art does; artwork already in your library works **offline**.
+- **Can I share one `.gameart` between Windows and Linux?** Yes — the format is identical, just copy the file.
 
 ## ⚖️ License
 
