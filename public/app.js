@@ -2452,6 +2452,7 @@ function renderArtGrid(all, opt) {
     : opt.loading
     ? T('加载中…')
     : '';
+  applyAddedMarkers(); // 打开/翻页时都按"实时库状态"标注「已加入」（删除后可重新添加）
 }
 
 function setArtStatus(text, cls) {
@@ -2480,16 +2481,60 @@ function friendlyNetError(msg) {
 }
 
 /* ---------------- 添加艺术图：队列化（可连点多张，串行下载，完成后统一刷新一次） ---------------- */
-const artAdd = { queue: [], busy: false, okCount: 0, currentKey: null, pendingRender: false, statusToken: 0, addedKeys: new Set() };
+const artAdd = { queue: [], busy: false, okCount: 0, currentKey: null, pendingRender: false, statusToken: 0, pendingAdded: new Set() };
 
 function artKeyOf(a) {
   return a && a.sgdb_id != null ? 'id:' + a.sgdb_id : 'url:' + ((a && a.url) || '');
 }
 
+/**
+ * 当前选图器上下文（游戏 + 类型）里「库里已存在」的图的 key 集合。
+ * ⚠️ 必须**实时查库**，不能用一个"记死的集合"——否则用户把图删掉后仍会被判为"已加入"（§10 #67）。
+ */
+function libraryAddedKeys() {
+  const set = new Set();
+  const art = state.art || {};
+  const type = art.type;
+  if (!type) return set;
+  for (const g of state.games || []) {
+    if (art.appid) {
+      if (String(g.appid) !== String(art.appid)) continue;
+    } else if (art.sgdbGameId) {
+      if (String(g.sgdb_id || '') !== String(art.sgdbGameId)) continue;
+    } else {
+      continue;
+    }
+    for (const it of (g.art && g.art[type]) || []) set.add(artKeyOf(it));
+  }
+  return set;
+}
+
+/** 按"实时库状态"给已缓存的单元格打上/去掉「已加入」标记（不重建单元格） */
+function applyAddedMarkers() {
+  const added = libraryAddedKeys();
+  for (const k of artAdd.pendingAdded) added.add(k); // 刚添加、库还没刷新时先按"已加入"显示
+  for (const [key, cell] of artCellCache) {
+    const has = added.has(key);
+    const tagged = cell.classList.contains('added');
+    if (has && !tagged) {
+      cell.classList.add('added');
+      const tags = cell.querySelector('.art-tags');
+      if (tags && !tags.querySelector('.tag-added')) {
+        tags.insertAdjacentHTML('beforeend', `<span class="art-tag tag-added">${T('已加入')}</span>`);
+      }
+    } else if (!has && tagged) {
+      cell.classList.remove('added');
+      const t = cell.querySelector('.tag-added');
+      if (t) t.remove();
+    }
+  }
+}
+
 /** 点图添加：入队（同一张重复点击会被忽略），状态条显示队列 */
 function enqueueAddArt(a) {
   const key = artKeyOf(a);
-  if (artAdd.addedKeys.has(key)) {
+  // 已加入库的判断**实时查库**（删除后即可重新添加）
+  if (libraryAddedKeys().has(key)) {
     toast(T('这张图已加入库'));
     return;
   }
@@ -2514,8 +2559,8 @@ async function pumpAddQueue() {
       setArtStatus(TP('正在下载，请稍等…（队列 {0}）', artAdd.queue.length), 'busy');
       const ok = await doAddArt(item.a, item.ctx);
       if (ok) {
-        artAdd.addedKeys.add(item.key);
-        markCellAdded(item.key);
+        artAdd.pendingAdded.add(item.key); // 立即给反馈；库刷新后以库为准
+        applyAddedMarkers();
       }
       artAdd.queue.shift();
       artAdd.currentKey = null;
@@ -2581,8 +2626,10 @@ async function refreshAfterAdds() {
   state.games = data.games || [];
   state.customOrders = data.customOrders || {};
   state.catMemberOrder = data.catMemberOrder || {};
+  artAdd.pendingAdded.clear(); // 库已是最新，"待确认"集合清空（此后一切以库为准）
   const pickerOpen = $('artModal') && !$('artModal').hidden;
   if (pickerOpen) {
+    applyAddedMarkers(); // 刷新「已加入」标记（新增/删除后都准确）
     artAdd.pendingRender = true; // 关掉选图器再渲染
     return;
   }
@@ -2597,14 +2644,7 @@ async function refreshAfterAdds() {
  *  - 详情弹窗仍开着（例如刚关掉上面的"选图器"）→ **刷新详情页**（新加的图立刻出现），主页渲染继续延后；
  *  - 没有任何弹窗挡着且有挂起渲染 → 补一次主页渲染。
  */
-/** 在选图器里把"已加入"的单元格标记出来（防止重复点击） */
-function markCellAdded(key) {
-  const cell = artCellCache.get(key);
-  if (!cell || cell.classList.contains('added')) return;
-  cell.classList.add('added');
-  const tags = cell.querySelector('.art-tags');
-  if (tags) tags.insertAdjacentHTML('beforeend', `<span class="art-tag tag-added">${T('已加入')}</span>`);
-}
+/** 「已加入」标记统一由 applyAddedMarkers()（实时查库）负责，见上方定义。 */
 
 function afterModalClose() {
   const detailOpen = $('detailModal') && !$('detailModal').hidden;
