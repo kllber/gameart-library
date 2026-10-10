@@ -82,6 +82,12 @@ fs.rmSync(SANDBOX, { recursive: true, force: true });
   const a1 = await fileassoc.autoRegister();
   check('已关联时 autoRegister 跳过（already）', a1.ok === true && a1.skipped === 'already', a1);
 
+  // 图标被删掉后，autoRegister 应重新注册以补装图标（老版本升级场景）
+  fs.rmSync(P.mimeIcon, { force: true });
+  const a1b = await fileassoc.autoRegister();
+  check('图标缺失时 autoRegister 会补装', a1b.ok === true && !a1b.skipped, a1b);
+  check('补装后图标回来了', fs.existsSync(P.mimeIcon));
+
   await fileassoc.unregister();
   check('取消后 .desktop 已删', !fs.existsSync(P.desktop));
   check('取消后 MIME xml 已删', !fs.existsSync(P.mimeXml));

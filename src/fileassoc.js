@@ -295,8 +295,18 @@ function linuxStatus() {
   const P = linuxPaths();
   const hasDesktop = fs.existsSync(P.desktop);
   const hasXml = fs.existsSync(P.mimeXml);
+  const hasIcon = fs.existsSync(P.mimeIcon); // 文件类型图标是否已装（用于自动补装）
   const registered = hasDesktop && hasXml && mimeappsHasDefault(P.mimeapps, MIME, DESKTOP_ID);
-  return { supported: true, registered, ext: EXT, command: linuxExec(), want: linuxExec(), icon: P.appIcon, desktopFile: P.desktop };
+  return {
+    supported: true,
+    registered,
+    iconsInstalled: hasIcon,
+    ext: EXT,
+    command: linuxExec(),
+    want: linuxExec(),
+    icon: P.appIcon,
+    desktopFile: P.desktop,
+  };
 }
 
 /** 把 PNG 装进 hicolor 图标主题：应用图标（apps/）+ `.gameart` 文件类型图标（mimetypes/） */
@@ -412,7 +422,8 @@ async function autoRegister() {
   try {
     const s = getStatus();
     if (!s.supported) return { ok: false, skipped: 'unsupported' };
-    if (s.registered && (!s.want || s.command === s.want)) return { ok: true, skipped: 'already' };
+    // 已关联、图标也在、命令没变 → 什么都不做；否则重写一遍（可补装图标 / 修正移动后的路径）
+    if (s.registered && s.iconsInstalled !== false && (!s.want || s.command === s.want)) return { ok: true, skipped: 'already' };
     const r = await register();
     return { ok: true, registered: !!r.registered, warning: r.warning || null };
   } catch (e) {
