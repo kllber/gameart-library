@@ -70,6 +70,10 @@ fs.rmSync(SANDBOX, { recursive: true, force: true });
     fs.existsSync(path.join(process.env.XDG_DATA_HOME, 'icons', 'hicolor', s + 'x' + s, 'mimetypes', 'application-x-gameart.png'))
   );
   check('安装多尺寸文件类型图标（' + installedIcons.length + '/' + sizes.length + '）', installedIcons.length >= 5, installedIcons);
+  const installedAppIcons = sizes.filter((s) =>
+    fs.existsSync(path.join(process.env.XDG_DATA_HOME, 'icons', 'hicolor', s + 'x' + s, 'apps', 'gameart-library.png'))
+  );
+  check('安装多尺寸应用图标（' + installedAppIcons.length + '/' + sizes.length + '）', installedAppIcons.length >= 5, installedAppIcons);
   const srcIcon = path.join(ROOT, 'public', 'fileicon', 'icon_256.png');
   check(
     '文件类型图标内容 = .gameart 图标（不是通用 logo）',

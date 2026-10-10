@@ -337,42 +337,46 @@ function linuxStatus() {
   };
 }
 
-/** 把 PNG 装进 hicolor 图标主题：应用图标（apps/）+ `.gameart` 文件类型图标（mimetypes/） */
-function installLinuxIcons(P) {
-  const appSrc = path.join(ROOT, 'public', 'icon.png');
-  if (fs.existsSync(appSrc)) {
-    try {
-      fs.mkdirSync(path.dirname(P.appIcon), { recursive: true });
-      fs.copyFileSync(appSrc, P.appIcon);
-    } catch (e) {
-      /* ignore */
-    }
-  }
-  // 文件类型图标：优先多尺寸 public/fileicon/icon_<size>.png（tools/extract-ico.js 生成），否则退回 public/icon.png
-  let installed = 0;
-  const dir = path.join(ROOT, 'public', 'fileicon');
+/** 把 `<srcDir>/icon_<N>.png` 全部装进 `hicolor/<N>x<N>/<context>/<baseName>.png`；返回安装数量 */
+function installIconSet(srcDir, context, baseName) {
+  let n = 0;
   try {
-    for (const f of fs.readdirSync(dir)) {
+    for (const f of fs.readdirSync(srcDir)) {
       const m = /^icon_(\d+)\.png$/i.exec(f);
       if (!m) continue;
       const s = m[1];
-      const dest = path.join(xdgDataHome(), 'icons', 'hicolor', s + 'x' + s, 'mimetypes', MIME_ICON + '.png');
+      const dest = path.join(xdgDataHome(), 'icons', 'hicolor', s + 'x' + s, context, baseName + '.png');
       fs.mkdirSync(path.dirname(dest), { recursive: true });
-      fs.copyFileSync(path.join(dir, f), dest);
-      installed++;
+      fs.copyFileSync(path.join(srcDir, f), dest);
+      n++;
     }
   } catch (e) {
     /* ignore */
   }
-  if (!installed && fs.existsSync(appSrc)) {
+  return n;
+}
+
+/** 把 PNG 装进 hicolor 图标主题：应用图标（apps/）+ `.gameart` 文件类型图标（mimetypes/） */
+function installLinuxIcons(P) {
+  // 应用图标：优先多尺寸 public/appicon/icon_<N>.png，否则退回 public/icon.png（256）
+  const appIconSrc = path.join(ROOT, 'public', 'icon.png');
+  if (!installIconSet(path.join(ROOT, 'public', 'appicon'), 'apps', APP_ID) && fs.existsSync(appIconSrc)) {
     try {
-      fs.mkdirSync(path.dirname(P.mimeIcon), { recursive: true });
-      fs.copyFileSync(appSrc, P.mimeIcon);
+      fs.mkdirSync(path.dirname(P.appIcon), { recursive: true });
+      fs.copyFileSync(appIconSrc, P.appIcon);
     } catch (e) {
       /* ignore */
     }
   }
-  return installed;
+  // 文件类型图标：优先多尺寸 public/fileicon/icon_<N>.png，否则退回 public/icon.png
+  if (!installIconSet(path.join(ROOT, 'public', 'fileicon'), 'mimetypes', MIME_ICON) && fs.existsSync(appIconSrc)) {
+    try {
+      fs.mkdirSync(path.dirname(P.mimeIcon), { recursive: true });
+      fs.copyFileSync(appIconSrc, P.mimeIcon);
+    } catch (e) {
+      /* ignore */
+    }
+  }
 }
 
 async function registerLinux() {
@@ -405,12 +409,15 @@ async function unregisterLinux() {
     /* ignore */
   }
   setMimeappsDefault(P.mimeapps, MIME, DESKTOP_ID, false);
-  // 清掉装过的图标（文件类型图标 + 应用图标）
+  // 清掉装过的图标（文件类型图标 + 应用图标，各尺寸）
   for (const s of [16, 24, 32, 48, 64, 128, 256, 512]) {
-    try {
-      fs.rmSync(path.join(xdgDataHome(), 'icons', 'hicolor', s + 'x' + s, 'mimetypes', MIME_ICON + '.png'), { force: true });
-    } catch (e) {
-      /* ignore */
+    for (const ctx of ['mimetypes', 'apps']) {
+      const name = ctx === 'apps' ? APP_ID + '.png' : MIME_ICON + '.png';
+      try {
+        fs.rmSync(path.join(xdgDataHome(), 'icons', 'hicolor', s + 'x' + s, ctx, name), { force: true });
+      } catch (e) {
+        /* ignore */
+      }
     }
   }
   try {

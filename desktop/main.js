@@ -72,10 +72,12 @@ if (PORTABLE) {
   }
 }
 
-// Linux：让 Electron 自适应 Wayland / X11（Wayland 会话下更稳；Windows 无影响）
+// Linux：让 Electron 自适应 Wayland / X11，并让窗口的 app_id / WM_CLASS
+// 与 .desktop 文件名一致（否则任务栏/停靠栏对不上图标，会显示成默认图标）
 if (process.platform === 'linux') {
   try {
     app.commandLine.appendSwitch('ozone-platform-hint', 'auto');
+    app.commandLine.appendSwitch('class', 'gameart-library');
   } catch (e) {
     /* ignore */
   }
