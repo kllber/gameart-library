@@ -286,7 +286,7 @@ const I18N_EN = {
   ' / 共 ': ' / ',
   '当前筛选下没有资源。可更换「类型 / 标签」或换一款游戏（如 Garry\'s Mod／TF2 有幽默、巫师3／赛博朋克2077 有成人）。': 'No artwork under the current filters. Try other type/tags or another game (e.g. Garry’s Mod / TF2 have humor, The Witcher 3 / Cyberpunk 2077 have adult).',
   // 同步 / 进度
-  'Steam 正在运行：可以直接同步（与 SGDBoop 相同）。若封面未立即刷新，重启一次 Steam 即可看到。': 'Steam is running: you can sync directly (same as SGDBoop). If covers do not refresh immediately, restart Steam once.',
+  'Steam 正在运行：可以直接同步（与 SGDBoop 相同）。封面若未立即刷新，重启一次 Steam 即可看到；图标（icon）必须重启 Steam 才会生效。': 'Steam is running: you can sync directly (same as SGDBoop). If covers do not refresh immediately, restart Steam once; icons take effect only after a Steam restart.',
   '完成': 'Done',
   '进行中': 'In progress',
   '（已获取': ' (fetched',
@@ -2691,7 +2691,7 @@ async function requestApply(appid, titleText) {
   const warn = $('applyWarn');
   if (status.steamRunning) {
     warn.hidden = false;
-    warn.textContent = T('Steam 正在运行：可以直接同步（与 SGDBoop 相同）。若封面未立即刷新，重启一次 Steam 即可看到。');
+    warn.textContent = T('Steam 正在运行：可以直接同步（与 SGDBoop 相同）。封面若未立即刷新，重启一次 Steam 即可看到；图标（icon）必须重启 Steam 才会生效。');
   } else {
     warn.hidden = true;
   }

@@ -54,6 +54,54 @@ function existingFilesOfType(gridDir, appid, type) {
 }
 
 /**
+ * 官方 Steam 游戏的图标**不在** config/grid —— 而在 Steam 的**图标缓存**（见 §10 #65）：
+ *   <Steam>/appcache/librarycache/<appid>/<图标哈希>.jpg   （2025+ 新式，主流）
+ *   <Steam>/appcache/librarycache/<appid>_icon.jpg         （旧式平铺，少数）
+ * 我们无法反推"图标哈希"，所以**就地替换缓存目录里已存在的 .jpg**（Steam 按缓存名读取，内容随便换）。
+ */
+function iconCacheTargets(steamPath, appid) {
+  const base = path.join(steamPath, 'appcache', 'librarycache');
+  const dir = path.join(base, String(appid));
+  const out = [];
+  try {
+    if (fs.statSync(dir).isDirectory()) {
+      for (const f of fs.readdirSync(dir)) {
+        // ⚠️ 只认「40 位十六进制哈希.jpg」= 图标本身；
+        //    同目录里还有 library_600x900_schinese.jpg / library_hero.jpg 等**其它库资源**，绝不能碰！
+        if (!/^[0-9a-f]{40}\.jpe?g$/i.test(f)) continue;
+        const full = path.join(dir, f);
+        try {
+          if (fs.statSync(full).isFile()) out.push(full);
+        } catch (e) {
+          /* ignore */
+        }
+      }
+    }
+  } catch (e) {
+    /* ignore */
+  }
+  if (out.length) return out;
+  // 旧式平铺：存在则替换；不存在也写一份（旧 Steam 有效，新 Steam 会忽略，无害）
+  return [path.join(base, String(appid) + '_icon.jpg')];
+}
+
+/**
+ * **原子替换**：先写临时文件再 `rename` 覆盖。
+ * Steam 若发现缓存文件被"直接写入"会还原成原图标 —— 所以必须走临时文件 + 改名。
+ */
+function writeAtomic(dest, srcFile) {
+  fs.mkdirSync(path.dirname(dest), { recursive: true });
+  const tmp = dest + '.gameart-tmp';
+  fs.copyFileSync(srcFile, tmp);
+  fs.renameSync(tmp, dest);
+}
+
+/** 该 appid 是否官方 Steam 游戏（非 Steam 快捷方式的 appid 高位为 1，数值很大） */
+function isSteamAppId(appid) {
+  return /^\d+$/.test(String(appid)) && Number(appid) < 2147483648;
+}
+
+/**
  * 生成写入计划（只读）。
  * @param {string} appid
  * @param {Object} typeToFile  { type: 本地绝对文件路径 }
@@ -65,14 +113,18 @@ function plan(appid, typeToFile) {
   for (const src of sources) {
     for (const type of types) {
       const ext = gridTargetExt(typeToFile[type]);
-      items.push({
+      const item = {
         account: src.accountId,
         gridDir: src.gridDir,
         type,
         from: typeToFile[type],
         to: String(appid) + SUFFIX[type] + ext,
         replace: existingFilesOfType(src.gridDir, appid, type),
-      });
+      };
+      if (type === 'icon' && isSteamAppId(appid)) {
+        item.iconCacheFiles = iconCacheTargets(src.steamPath, appid).map((p) => path.relative(src.steamPath, p));
+      }
+      items.push(item);
     }
   }
   return { appid, sourceCount: sources.length, types, items };
@@ -99,6 +151,7 @@ async function apply(appid, typeToFile, opts) {
   const backupDir = opts.backupDir || path.join(BACKUP_ROOT, timestamp());
   const written = [];
   const backedUp = [];
+  const failed = [];
 
   for (const src of sources) {
     for (const type of Object.keys(typeToFile)) {
@@ -126,10 +179,30 @@ async function apply(appid, typeToFile, opts) {
       fs.copyFileSync(file, path.join(src.gridDir, to));
       written.push(src.accountId + '/' + to);
     }
+
+    // 3) 图标额外写进 Steam 的**图标缓存**（官方 Steam 游戏的图标不读 config/grid，见 §10 #65）
+    const iconFile = typeToFile.icon;
+    if (iconFile && fs.existsSync(iconFile) && isSteamAppId(appid)) {
+      for (const t of iconCacheTargets(src.steamPath, appid)) {
+        try {
+          if (fs.existsSync(t)) {
+            const bak = path.join(backupDir, src.accountId, 'appcache', path.basename(t));
+            fs.mkdirSync(path.dirname(bak), { recursive: true });
+            if (!fs.existsSync(bak)) fs.copyFileSync(t, bak);
+            backedUp.push(src.accountId + '/appcache/' + path.basename(t));
+          }
+          writeAtomic(t, iconFile);
+          written.push(src.accountId + '/appcache/' + path.basename(t));
+        } catch (e) {
+          // 图标缓存写入失败要**能看见**（Steam 占用/权限）——别悄悄失败
+          failed.push({ account: src.accountId, file: 'appcache/' + path.basename(t), error: (e && e.message) || String(e) });
+        }
+      }
+    }
   }
 
   if (!opts.skipPrune) pruneBackups();
-  return { backupDir, written, backedUp, steamRunning: running };
+  return { backupDir, written, backedUp, failed, steamRunning: running };
 }
 
 /**
