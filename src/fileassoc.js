@@ -224,7 +224,8 @@ function linuxMimeXml() {
     '    <comment>GameArt Library</comment>\n' +
     '    <comment xml:lang="zh_CN">游戏艺术库</comment>\n' +
     '    <glob pattern="*' + EXT + '"/>\n' +
-    '    <icon name="' + MIME + '"/>\n' +
+    '    <icon name="' + MIME_ICON + '"/>\n' +
+    '    <generic-icon name="' + MIME_ICON + '"/>\n' +
     '  </mime-type>\n' +
     '</mime-info>\n'
   );

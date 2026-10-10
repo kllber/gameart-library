@@ -59,6 +59,8 @@ fs.rmSync(SANDBOX, { recursive: true, force: true });
   check('  .desktop 含 Icon', has(P.desktop, 'Icon=gameart-library'));
   check('写出 MIME xml', fs.existsSync(P.mimeXml));
   check('  MIME xml 含 *.gameart glob', has(P.mimeXml, '<glob pattern="*.gameart"/>'));
+  check('  MIME xml 的图标名不含斜杠（application-x-gameart）', has(P.mimeXml, '<icon name="application-x-gameart"/>'), fs.readFileSync(P.mimeXml, 'utf8'));
+  check('  MIME xml 含 generic-icon', has(P.mimeXml, '<generic-icon name="application-x-gameart"/>'));
   check('写 mimeapps 默认关联', has(P.mimeapps, 'application/x-gameart=gameart-library.desktop'));
   check('安装应用图标', fs.existsSync(P.appIcon));
   check('安装文件类型图标（256）', fs.existsSync(P.mimeIcon));
