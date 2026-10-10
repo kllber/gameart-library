@@ -317,10 +317,18 @@ function linuxStatus() {
   const hasXml = fs.existsSync(P.mimeXml);
   const hasIcon = fs.existsSync(P.mimeIcon); // 文件类型图标是否已装（用于自动补装）
   const registered = hasDesktop && hasXml && mimeappsHasDefault(P.mimeapps, MIME, DESKTOP_ID);
+  // 生成的文件是否与"当前版本应写的内容"一致（不一致 → 下次启动自动重写，用于自愈）
+  let filesMatch = false;
+  try {
+    filesMatch = hasDesktop && hasXml && readText(P.desktop) === linuxDesktopFile() && readText(P.mimeXml) === linuxMimeXml();
+  } catch (e) {
+    filesMatch = false;
+  }
   return {
     supported: true,
     registered,
     iconsInstalled: hasIcon,
+    filesMatch,
     ext: EXT,
     command: linuxExec(),
     want: linuxExec(),
@@ -442,8 +450,11 @@ async function autoRegister() {
   try {
     const s = getStatus();
     if (!s.supported) return { ok: false, skipped: 'unsupported' };
-    // 已关联、图标也在、命令没变 → 什么都不做；否则重写一遍（可补装图标 / 修正移动后的路径）
-    if (s.registered && s.iconsInstalled !== false && (!s.want || s.command === s.want)) return { ok: true, skipped: 'already' };
+    // 已关联、图标在、生成文件也与当前版本一致、命令没变 → 什么都不做；
+    // 否则重写一遍（自愈：补装图标 / 修正移动后的路径 / 修正生成文件的笔误）
+    if (s.registered && s.iconsInstalled !== false && s.filesMatch !== false && (!s.want || s.command === s.want)) {
+      return { ok: true, skipped: 'already' };
+    }
     const r = await register();
     return { ok: true, registered: !!r.registered, warning: r.warning || null };
   } catch (e) {

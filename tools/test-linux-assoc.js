@@ -82,7 +82,15 @@ fs.rmSync(SANDBOX, { recursive: true, force: true });
   check('注册后 registered=true', s1.registered === true, s1);
 
   const a1 = await fileassoc.autoRegister();
-  check('已关联时 autoRegister 跳过（already）', a1.ok === true && a1.skipped === 'already', a1);
+  check('已关联且文件一致时 autoRegister 跳过（already）', a1.ok === true && a1.skipped === 'already', a1);
+  check('注册后 filesMatch=true', fileassoc.getStatus().filesMatch === true, fileassoc.getStatus());
+
+  // 自愈：把生成的 xml 改坏（模拟旧版本的笔误），autoRegister 应重写它
+  fs.writeFileSync(P.mimeXml, fs.readFileSync(P.mimeXml, 'utf8').replace('application-x-gameart', 'application/x-gameart'), 'utf8');
+  check('xml 被改坏后 filesMatch=false', fileassoc.getStatus().filesMatch === false);
+  const a1c = await fileassoc.autoRegister();
+  check('autoRegister 自愈重写', a1c.ok === true && !a1c.skipped, a1c);
+  check('自愈后 xml 图标名正确', has(P.mimeXml, '<icon name="application-x-gameart"/>'));
 
   // 图标被删掉后，autoRegister 应重新注册以补装图标（老版本升级场景）
   fs.rmSync(P.mimeIcon, { force: true });
