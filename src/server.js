@@ -552,20 +552,20 @@ async function handleApi(req, res, pathname, query) {
     return sendJson(res, 200, { ok: true });
   }
 
-  // ---- .gameart 文件关联（Windows）----
+  // ---- .gameart 文件关联（Windows 注册表 / Linux freedesktop）----
   if (pathname === '/api/assoc/status') {
     return sendJson(res, 200, fileassoc.getStatus());
   }
   if (pathname === '/api/assoc/register' && req.method === 'POST') {
     try {
-      return sendJson(res, 200, { ok: true, ...fileassoc.register() });
+      return sendJson(res, 200, { ok: true, ...(await fileassoc.register()) });
     } catch (e) {
       return sendJson(res, 200, { ok: false, error: e.message });
     }
   }
   if (pathname === '/api/assoc/unregister' && req.method === 'POST') {
     try {
-      return sendJson(res, 200, { ok: true, ...fileassoc.unregister() });
+      return sendJson(res, 200, { ok: true, ...(await fileassoc.unregister()) });
     } catch (e) {
       return sendJson(res, 200, { ok: false, error: e.message });
     }

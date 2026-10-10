@@ -111,7 +111,7 @@ const I18N_EN = {
   '.gameart 文件关联': '.gameart file association',
   '关联到本软件': 'Associate with this app',
   '取消关联': 'Remove association',
-  '关联后，双击 .gameart 文件即可用本软件打开该库（仅 Windows）。': 'After associating, double-click a .gameart file to open it with this app (Windows only).',
+  '关联后，双击 .gameart 文件即可用本软件打开该库。': 'After associating, double-click a .gameart file to open it with this app.',
   '存储占用与清理': 'Storage & cleanup',
   '清理默认图缓存': 'Clear default-art cache',
   '清理备份': 'Clear backups',
@@ -259,7 +259,7 @@ const I18N_EN = {
   '款游戏': 'games',
   '检测到本机账号：': 'Local account detected: ',
   '（已自动填入 SteamID），只需粘贴 API Key': ' (SteamID filled automatically) — just paste the API Key',
-  '（仅支持 Windows）': ' (Windows only)',
+  '（当前系统不支持）': ' (not supported on this system)',
   '已关联 ✔': 'Associated ✔',
   '未关联': 'Not associated',
   '默认图缓存': 'Default-art cache',
@@ -2957,7 +2957,7 @@ async function openSettings(tab) {
   try {
     const a = await api('/api/assoc/status');
     const el = $('assocStatus');
-    if (el) el.textContent = !a.supported ? T('（仅支持 Windows）') : a.registered ? T('已关联 ✔') : T('未关联');
+    if (el) el.textContent = !a.supported ? T('（当前系统不支持）') : a.registered ? T('已关联 ✔') : T('未关联');
   } catch (e) {
     /* ignore */
   }
@@ -3051,6 +3051,7 @@ function bind() {
     if (r.ok) {
       toast(T('已关联 .gameart 文件'));
       if ($('assocStatus')) $('assocStatus').textContent = T('已关联 ✔');
+      if (r.warning && $('assocStatus')) $('assocStatus').textContent += ' · ' + r.warning;
     } else toast(r.error || T('关联失败'), true);
   });
   $('btnAssocUnreg').addEventListener('click', async () => {
@@ -3058,6 +3059,7 @@ function bind() {
     if (r.ok) {
       toast(T('已取消关联'));
       if ($('assocStatus')) $('assocStatus').textContent = T('未关联');
+      if (r.warning && $('assocStatus')) $('assocStatus').textContent += ' · ' + r.warning;
     } else toast(r.error || T('取消失败'), true);
   });
 
