@@ -244,6 +244,7 @@ const I18N_EN = {
   '正在下载，请稍等…': 'Downloading, please wait…',
   '正在下载，请稍等…（队列 {0}）': 'Downloading, please wait… (queue {0})',
   '已加入库（{0} 张）': 'Added to library ({0})',
+  '已加入': 'Added',
   '这张图正在添加中…': 'This image is already being added…',
   '预览加载失败': 'Failed to load preview',
   '证书校验失败（公司代理/自签证书）。可在 设置→SteamGridDB API 勾选「证书失败时回退」。': 'Certificate verification failed (corporate proxy / self-signed). Enable “Fallback on certificate failure” in Settings → SteamGridDB API.',
@@ -2489,6 +2490,7 @@ async function pumpAddQueue() {
       artAdd.currentKey = item.key;
       setArtStatus(TP('正在下载，请稍等…（队列 {0}）', artAdd.queue.length), 'busy');
       const ok = await doAddArt(item.a);
+      if (ok) markCellAdded(item.key);
       artAdd.queue.shift();
       artAdd.currentKey = null;
       if (ok) artAdd.okCount++;
@@ -2561,10 +2563,31 @@ async function refreshAfterAdds() {
   if (state.detail && $('detailModal') && !$('detailModal').hidden) openDetail(state.detail.appid);
 }
 
-/** 关闭弹窗后的收尾：清详情状态；若选图器刚关掉且有挂起的渲染则补渲染 */
+/**
+ * 关闭弹窗后的收尾：
+ *  - 详情弹窗已关闭 → 清空 state.detail；
+ *  - 详情弹窗仍开着（例如刚关掉上面的"选图器"）→ **刷新详情页**（新加的图立刻出现），主页渲染继续延后；
+ *  - 没有任何弹窗挡着且有挂起渲染 → 补一次主页渲染。
+ */
+/** 在选图器里把"已加入"的单元格标记出来（防止重复点击） */
+function markCellAdded(key) {
+  const cell = artCellCache.get(key);
+  if (!cell || cell.classList.contains('added')) return;
+  cell.classList.add('added');
+  const tags = cell.querySelector('.art-tags');
+  if (tags) tags.insertAdjacentHTML('beforeend', `<span class="art-tag tag-added">${T('已加入')}</span>`);
+}
+
 function afterModalClose() {
-  if ($('detailModal') && $('detailModal').hidden) state.detail = null;
-  if ($('artModal') && $('artModal').hidden && artAdd.pendingRender) {
+  const detailOpen = $('detailModal') && !$('detailModal').hidden;
+  if (!detailOpen) state.detail = null;
+  if (detailOpen && state.detail) {
+    openDetail(state.detail.appid); // 详情页立即反映刚添加的图
+    return;
+  }
+  // 还有其它弹窗挡着就先别重建主页（避免在弹窗上"闪一下"）
+  const anyModalOpen = !!document.querySelector('.modal:not([hidden])');
+  if (artAdd.pendingRender && !anyModalOpen) {
     artAdd.pendingRender = false;
     render();
   }
