@@ -42,6 +42,15 @@
     },
     "portable": {
       "unicode": true
+    },
+    "linux": {
+      "target": [
+        "AppImage"
+      ],
+      "category": "Utility",
+      "icon": "public/icon.png",
+      "executableName": "gameart-library",
+      "artifactName": "GameArtLibrary-v${version}-linux-${arch}.${ext}"
     }
   }
 }

@@ -1,0 +1,52 @@
+name: build-linux-appimage
+
+on:
+  workflow_dispatch:
+  push:
+    branches: [main]
+    paths:
+      - 'src/**'
+      - 'public/**'
+      - 'desktop/**'
+      - 'tools/**'
+      - 'package.json'
+      - 'package-lock.json'
+      - '.github/workflows/build-linux-appimage.yml'
+
+jobs:
+  appimage:
+    name: Build Linux AppImage
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+
+      # AppImage 打包工具需要 libfuse2（24.04 起包名为 libfuse2t64）
+      - name: Install AppImage build deps
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y libfuse2 || sudo apt-get install -y libfuse2t64 || true
+
+      - name: Install npm deps
+        run: npm install --no-audit --no-fund
+        env:
+          ELECTRON_BUILDER_CACHE: .cache/electron-builder
+
+      - name: Build AppImage
+        run: npx electron-builder --linux AppImage --publish never
+        env:
+          CSC_IDENTITY_AUTO_DISCOVERY: 'false'
+          ELECTRON_BUILDER_CACHE: .cache/electron-builder
+
+      - name: Show built files
+        run: ls -lh dist || true
+
+      - name: Upload AppImage
+        uses: actions/upload-artifact@v4
+        with:
+          name: GameArtLibrary-linux-AppImage
+          path: dist/*.AppImage
+          if-no-files-found: error

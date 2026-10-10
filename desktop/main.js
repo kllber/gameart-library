@@ -17,6 +17,7 @@
 
 const path = require('path');
 const fs = require('fs');
+const os = require('os');
 const net = require('net');
 const http = require('http');
 const { app, BrowserWindow, Menu, shell, dialog } = require('electron');
@@ -24,18 +25,32 @@ const { app, BrowserWindow, Menu, shell, dialog } = require('electron');
 let mainWindow = null;
 let backendPort = 0;
 
-/* ---------------- 便携版（分发版本）：可写目录一律放程序目录内，绝不写 C 盘 ---------------- */
+/* ---------------- 可写目录：便携版一律放程序目录内；Linux 打包版用 XDG ---------------- */
 const PORTABLE = process.env.GAMEART_PORTABLE === '1';
-if (PORTABLE && !app.isPackaged) {
+
+/** 便携版根目录：显式指定 > AppImage 所在目录（squashfs 挂载点只读）> 应用目录的上一级 */
+function portableRoot() {
+  if (process.env.GAMEART_PORTABLE_ROOT) return process.env.GAMEART_PORTABLE_ROOT;
+  if (process.env.APPIMAGE) {
+    try {
+      return path.dirname(process.env.APPIMAGE);
+    } catch (e) {
+      /* ignore */
+    }
+  }
+  return path.resolve(__dirname, '..', '..');
+}
+
+if (PORTABLE) {
   try {
-    const distRoot = process.env.GAMEART_PORTABLE_ROOT || path.resolve(__dirname, '..', '..');
+    const distRoot = portableRoot();
     const dataDir = process.env.GAMEART_DATA_DIR || path.join(distRoot, 'data');
     const tmpDir = process.env.GAMEART_TMP_DIR || path.join(distRoot, 'tmp');
     fs.mkdirSync(dataDir, { recursive: true });
     fs.mkdirSync(tmpDir, { recursive: true });
     process.env.GAMEART_DATA_DIR = dataDir;
     process.env.GAMEART_TMP_DIR = tmpDir;
-    // Chromium/Electron 的缓存、临时、崩溃转储也放程序目录（默认会去 %APPDATA%）
+    // Chromium/Electron 的缓存、临时、崩溃转储也放程序目录（默认会去 %APPDATA% / ~/.config）
     app.setPath('userData', path.join(dataDir, 'electron'));
     try {
       app.setPath('sessionData', path.join(dataDir, 'electron'));
@@ -52,6 +67,15 @@ if (PORTABLE && !app.isPackaged) {
     } catch (e) {
       /* ignore */
     }
+  } catch (e) {
+    /* ignore */
+  }
+}
+
+// Linux：让 Electron 自适应 Wayland / X11（Wayland 会话下更稳；Windows 无影响）
+if (process.platform === 'linux') {
+  try {
+    app.commandLine.appendSwitch('ozone-platform-hint', 'auto');
   } catch (e) {
     /* ignore */
   }
@@ -158,18 +182,37 @@ async function startBackend() {
   const port = await findFreePort();
   process.env.NO_OPEN = '1'; // 不要用系统浏览器打开
   process.env.PORT = String(port);
-  // 打包后程序目录是只读的 asar：把可写的数据/临时目录指到用户数据目录
-  if (app.isPackaged) {
-    const base = app.getPath('userData');
-    process.env.GAMEART_DATA_DIR = path.join(base, 'data');
-    process.env.GAMEART_TMP_DIR = path.join(base, 'tmp');
+  // 打包后程序目录只读（asar / AppImage 的 squashfs）：把可写目录指到用户可写处
+  if (app.isPackaged && !PORTABLE) {
+    let dataBase;
+    let tmpBase;
+    if (process.platform === 'linux') {
+      const xdgData = process.env.XDG_DATA_HOME || path.join(os.homedir(), '.local', 'share');
+      const xdgCache = process.env.XDG_CACHE_HOME || path.join(os.homedir(), '.cache');
+      dataBase = path.join(xdgData, 'gameart-library');
+      tmpBase = path.join(xdgCache, 'gameart-library');
+    } else {
+      dataBase = path.join(app.getPath('userData'), 'data');
+      tmpBase = path.join(app.getPath('userData'), 'tmp');
+    }
     try {
-      const src = path.join(process.resourcesPath, 'icon-gameart.ico');
-      const dst = path.join(base, 'icon-gameart.ico');
-      fs.copyFileSync(src, dst);
-      process.env.GAMEART_ICON_PATH = dst;
+      fs.mkdirSync(dataBase, { recursive: true });
+      fs.mkdirSync(tmpBase, { recursive: true });
     } catch (e) {
       /* ignore */
+    }
+    process.env.GAMEART_DATA_DIR = dataBase;
+    process.env.GAMEART_TMP_DIR = tmpBase;
+    // .gameart 文件图标（仅 Windows 的文件关联需要）
+    if (process.platform === 'win32') {
+      try {
+        const src = path.join(process.resourcesPath, 'icon-gameart.ico');
+        const dst = path.join(app.getPath('userData'), 'icon-gameart.ico');
+        fs.copyFileSync(src, dst);
+        process.env.GAMEART_ICON_PATH = dst;
+      } catch (e) {
+        /* ignore */
+      }
     }
   }
   require('../src/server.js');
@@ -178,8 +221,19 @@ async function startBackend() {
 }
 
 /* ---------------- 创建窗口 ---------------- */
+
+/** 窗口图标：Linux 用 PNG（.ico 在 Linux 上无效），其余用 .ico */
+function windowIconPath() {
+  if (process.platform === 'linux') {
+    const png = path.join(__dirname, '..', 'public', 'icon.png');
+    if (fs.existsSync(png)) return png;
+  }
+  const ico = path.join(__dirname, 'icon.ico');
+  return fs.existsSync(ico) ? ico : null;
+}
+
 function createWindow(port) {
-  const iconPath = path.join(__dirname, 'icon.ico');
+  const iconPath = windowIconPath();
   const win = new BrowserWindow({
     width: 1320,
     height: 860,
@@ -189,7 +243,7 @@ function createWindow(port) {
     title: '游戏艺术库 · GameArt Library',
     autoHideMenuBar: true,
     show: false,
-    ...(fs.existsSync(iconPath) ? { icon: iconPath } : {}),
+    ...(iconPath ? { icon: iconPath } : {}),
     webPreferences: {
       contextIsolation: true,
       nodeIntegration: false,
@@ -238,6 +292,35 @@ function createWindow(port) {
 /* ---------------- 生命周期 ---------------- */
 app.whenReady().then(async () => {
   Menu.setApplicationMenu(null); // 去掉默认菜单栏
+
+  // 原生文件对话框交给 Electron（随包、跨平台、最稳）；platform.js 会**优先**用它
+  const parentWin = () => mainWindow || BrowserWindow.getAllWindows()[0] || null;
+  global.__gameartDialog = {
+    open: async () => {
+      const opts = {
+        title: '选择 .gameart 库文件',
+        filters: [
+          { name: 'GameArt 库', extensions: ['gameart'] },
+          { name: '所有文件', extensions: ['*'] },
+        ],
+        properties: ['openFile'],
+      };
+      const w = parentWin();
+      const r = w ? await dialog.showOpenDialog(w, opts) : await dialog.showOpenDialog(opts);
+      return r.canceled || !r.filePaths.length ? null : r.filePaths[0];
+    },
+    save: async (defaultName) => {
+      const opts = {
+        title: '新建 .gameart 库文件',
+        defaultPath: defaultName || '我的游戏艺术库.gameart',
+        filters: [{ name: 'GameArt 库', extensions: ['gameart'] }],
+      };
+      const w = parentWin();
+      const r = w ? await dialog.showSaveDialog(w, opts) : await dialog.showSaveDialog(opts);
+      return r.canceled || !r.filePath ? null : r.filePath;
+    },
+  };
+
   try {
     backendPort = await startBackend();
     const f = pickGameartArg(process.argv); // 双击 .gameart 打开

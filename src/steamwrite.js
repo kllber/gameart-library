@@ -30,8 +30,8 @@ function gridTargetExt(file) {
   return ext === '.webp' ? '.png' : ext;
 }
 
-/** Steam 是否正在运行（平台差异见 platform.js，带 5s 缓存） */
-function isSteamRunning() {
+/** Steam 是否正在运行（平台差异见 platform.js，带 5s 缓存；**异步**） */
+async function isSteamRunning() {
   return platform.isSteamRunning();
 }
 
@@ -86,9 +86,9 @@ function plan(appid, typeToFile) {
  * @param {Object} typeToFile
  * @param {Object} [opts] { requireClosed }  传 true 时才要求 Steam 已关闭
  */
-function apply(appid, typeToFile, opts) {
+async function apply(appid, typeToFile, opts) {
   opts = opts || {};
-  const running = isSteamRunning();
+  const running = await isSteamRunning();
   if (running && opts.requireClosed) {
     throw new Error('Steam 正在运行，请先完全退出 Steam 再替换。');
   }

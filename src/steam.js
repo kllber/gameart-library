@@ -40,14 +40,24 @@ function normalizeSlash(p) {
  * 候选来源由 platform.steamInstallCandidates() 提供（Windows：注册表+默认路径；Linux：常见安装位置）。
  */
 function detectSteamPaths() {
-  const seen = new Map(); // lower-case -> 原始大小写
+  const seen = new Map(); // 真实路径 -> 原始路径
 
   const add = (p) => {
     if (!p) return;
     try {
       const norm = normalizeSlash(p);
       if (!platform.looksLikeSteamRoot(norm)) return;
-      const key = norm.toLowerCase();
+      // 按"真实路径"去重（解析符号链接）：
+      //  · Linux：~/.steam/steam 常是 ~/.local/share/Steam 的软链接 → 同一个目录不能算两次；
+      //  · Windows：realpath 顺带把 d:\steam / D:\Steam 归一，取代原来的"仅按小写去重"。
+      let real = norm;
+      try {
+        real = fs.realpathSync(norm);
+      } catch (e) {
+        /* 解析失败就退回原路径 */
+      }
+      let key = normalizeSlash(real);
+      if (platform.IS_WINDOWS) key = key.toLowerCase(); // Windows 大小写不敏感
       if (!seen.has(key)) seen.set(key, norm);
     } catch (e) {
       /* ignore */
@@ -72,6 +82,7 @@ function listAccounts(steamPath) {
   const accounts = [];
   for (const e of entries) {
     if (!e.isDirectory() || !/^\d+$/.test(e.name)) continue;
+    if (e.name === '0') continue; // Steam 伪账号目录（SteamID3 不可能为 0），不是真人账号（Linux 上常见）
     const gridDir = path.join(userdata, e.name, 'config', 'grid');
     let gridExists = false;
     try {

@@ -478,7 +478,7 @@ async function runApplyBatch(appids) {
         if (!Object.keys(files).length) {
           applyJob.failed++;
         } else {
-          const r = steamwrite.apply(appid, files, { sources, backupDir, skipPrune: true });
+          const r = await steamwrite.apply(appid, files, { sources, backupDir, skipPrune: true });
           applyJob.steamRunning = r.steamRunning;
           applyJob.ok++;
         }
@@ -522,7 +522,7 @@ async function handleApi(req, res, pathname, query) {
     }
   }
   if (pathname === '/api/workspace/pick' && req.method === 'POST') {
-    const p = workspace.pickOpenFile();
+    const p = await workspace.pickOpenFile();
     if (!p) return sendJson(res, 200, { ok: false, canceled: true });
     if (!fs.existsSync(p)) return sendJson(res, 200, { ok: false, error: '文件不存在' });
     try {
@@ -535,7 +535,7 @@ async function handleApi(req, res, pathname, query) {
     }
   }
   if (pathname === '/api/workspace/new' && req.method === 'POST') {
-    let p = workspace.pickSaveFile();
+    let p = await workspace.pickSaveFile();
     if (!p) return sendJson(res, 200, { ok: false, canceled: true });
     if (!/\.gameart$/i.test(p)) p += '.gameart';
     try {
@@ -631,7 +631,7 @@ async function handleApi(req, res, pathname, query) {
       version: APP_VERSION,
       steamPaths: s.steamPaths,
       accountCount: s.sources.length,
-      steamRunning: steamwrite.isSteamRunning(),
+      steamRunning: await steamwrite.isSteamRunning(),
       hasApiKey: !!db.getSetting('sgdb_api_key'),
       steamBound: accs.length > 0,
       steamAccounts: accs.length,
@@ -1247,7 +1247,7 @@ async function handleApi(req, res, pathname, query) {
     }
     cleanupFiles(created);
     return sendJson(res, 200, {
-      steamRunning: steamwrite.isSteamRunning(),
+      steamRunning: await steamwrite.isSteamRunning(),
       plans,
       appCount: plans.length,
       fileCount,
@@ -1261,7 +1261,7 @@ async function handleApi(req, res, pathname, query) {
     try {
       const files = selectedFilesFor(appid, created);
       if (!Object.keys(files).length) return sendJson(res, 200, { ok: false, error: '该游戏没有可同步的本地图片' });
-      const r = steamwrite.apply(appid, files, {});
+      const r = await steamwrite.apply(appid, files, {});
       return sendJson(res, 200, { ok: true, backupDir: r.backupDir, written: r.written, backedUp: r.backedUp, steamRunning: r.steamRunning });
     } catch (e) {
       return sendJson(res, 200, { ok: false, error: e.message });
@@ -1292,7 +1292,7 @@ async function handleApi(req, res, pathname, query) {
       try {
         const files = selectedFilesFor(g.appid, created);
         if (!Object.keys(files).length) continue;
-        const r = steamwrite.apply(g.appid, files, {});
+        const r = await steamwrite.apply(g.appid, files, {});
         steamRunning = r.steamRunning;
         okCount++;
         results.push({ appid: g.appid, name: g.name, files: r.written.length, backupDir: r.backupDir });

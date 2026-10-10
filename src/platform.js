@@ -22,7 +22,7 @@
 const fs = require('fs');
 const os = require('os');
 const path = require('path');
-const { execFileSync } = require('child_process');
+const { execFileSync, execFile } = require('child_process');
 
 const IS_WINDOWS = process.platform === 'win32';
 const IS_LINUX = process.platform === 'linux';
@@ -95,11 +95,34 @@ function looksLikeSteamRoot(p) {
   return false;
 }
 
-/* ---------------- Steam 是否运行（带 5s 缓存） ---------------- */
+/* ---------------- 异步执行命令（**只用 execFile，绝不 spawnSync**，见 §10 #59） ---------------- */
+
+/** 异步执行命令并捕获 stdout；失败/无输出返回 null */
+function runAsync(cmd, args, timeout) {
+  return new Promise((resolve) => {
+    try {
+      execFile(
+        cmd,
+        args,
+        { encoding: 'utf8', timeout: timeout || 180000, windowsHide: true, maxBuffer: 8 * 1024 * 1024 },
+        (err, stdout) => {
+          if (err) return resolve(null);
+          const p = String(stdout || '').trim();
+          resolve(p || null);
+        }
+      );
+    } catch (e) {
+      resolve(null);
+    }
+  });
+}
+
+/* ---------------- Steam 是否运行（**异步** + 5s 缓存） ---------------- */
 
 let _steamRunCache = { t: 0, v: false };
+let _steamRunInflight = null;
 
-/** 无 pgrep 时的兜底：扫描 /proc 找进程名 */
+/** 无 pgrep 时的兜底：扫描 /proc 找进程名（Linux 必有 /proc，不依赖外部命令） */
 function scanProcFor(name) {
   try {
     const pids = fs.readdirSync('/proc').filter((n) => /^\d+$/.test(n));
@@ -117,55 +140,61 @@ function scanProcFor(name) {
   return false;
 }
 
-function isSteamRunning() {
+/** Linux：pgrep → flatpak ps → 纯 Node 扫 /proc（无外部依赖兜底） */
+async function isSteamRunningLinux() {
+  if (await runAsync('pgrep', ['-x', 'steam'], 5000)) return true;
+  if (await runAsync('pgrep', ['-x', 'steamwebhelper'], 5000)) return true;
+  const fp = await runAsync('flatpak', ['ps'], 5000); // Flatpak 版 Steam
+  if (fp && /com\.valvesoftware\.Steam/.test(fp)) return true;
+  return scanProcFor('steam') || scanProcFor('steamwebhelper');
+}
+
+/** Steam 客户端是否在运行（**异步**；5s 缓存 + 并发合并） */
+async function isSteamRunning() {
   const now = Date.now();
   if (now - _steamRunCache.t < 5000) return _steamRunCache.v;
-  let v = false;
-  try {
-    if (IS_WINDOWS) {
-      const out = execFileSync('tasklist', ['/FI', 'IMAGENAME eq steam.exe', '/NH'], {
-        encoding: 'utf8',
-        windowsHide: true,
-      });
-      v = /steam\.exe/i.test(out);
-    } else if (IS_LINUX) {
-      try {
-        execFileSync('pgrep', ['-x', 'steam'], { stdio: 'ignore' });
-        v = true;
-      } catch (e) {
-        v = scanProcFor('steam');
+  if (_steamRunInflight) return _steamRunInflight; // 并发调用合并为一次
+  _steamRunInflight = (async () => {
+    let v = false;
+    try {
+      if (IS_WINDOWS) {
+        const out = await runAsync('tasklist', ['/FI', 'IMAGENAME eq steam.exe', '/NH'], 8000);
+        v = !!(out && /steam\.exe/i.test(out));
+      } else if (IS_LINUX) {
+        v = await isSteamRunningLinux();
       }
+    } catch (e) {
+      v = false;
     }
-  } catch (e) {
-    v = false;
-  }
-  _steamRunCache = { t: now, v };
-  return v;
+    _steamRunCache = { t: Date.now(), v };
+    _steamRunInflight = null;
+    return v;
+  })();
+  return _steamRunInflight;
 }
 
-/* ---------------- 原生文件对话框 ---------------- */
+/* ---------------- 原生文件对话框（**异步**；优先 Electron dialog） ---------------- */
+// 优先用 Electron 自带 dialog（随包、跨平台、最稳）；浏览器版/无 Electron 时回退：
+//   Linux → zenity / kdialog；Windows → PowerShell + WinForms（TopMost 隐藏宿主保证置顶）。
+// **全部异步**（见 §10 #59）。
 
-function runCaptured(cmd, args) {
-  try {
-    const out = execFileSync(cmd, args, { encoding: 'utf8', timeout: 180000, windowsHide: true });
-    const p = (out || '').trim();
-    return p || null;
-  } catch (e) {
-    return null;
-  }
+/** Electron 主进程注入的对话框能力（desktop/main.js 设置；浏览器版为 null） */
+function electronDialog() {
+  return typeof global !== 'undefined' && global.__gameartDialog ? global.__gameartDialog : null;
 }
 
-function hasCommand(cmd) {
-  try {
-    execFileSync('sh', ['-c', 'command -v ' + cmd], { stdio: 'ignore' });
-    return true;
-  } catch (e) {
-    return false;
-  }
-}
-
-/** 打开 .gameart：Windows 用 PowerShell+WinForms（TopMost 隐藏宿主保证置顶）；Linux 用 zenity/kdialog */
+/** 打开 .gameart → 路径或 null */
 function pickOpenFile() {
+  const d = electronDialog();
+  if (d && typeof d.open === 'function') {
+    try {
+      return Promise.resolve(d.open())
+        .then((p) => (p ? String(p) : null))
+        .catch(() => null);
+    } catch (e) {
+      /* 退回系统命令 */
+    }
+  }
   if (IS_WINDOWS) {
     const ps =
       "[Console]::OutputEncoding=[Text.Encoding]::UTF8; Add-Type -AssemblyName System.Windows.Forms; " +
@@ -176,25 +205,37 @@ function pickOpenFile() {
       "$d.Title = '选择 .gameart 库文件'; " +
       "$r = $d.ShowDialog($o); $o.Close(); " +
       "if ($r -eq [System.Windows.Forms.DialogResult]::OK) { [Console]::Out.Write($d.FileName) }";
-    return runCaptured('powershell', ['-NoProfile', '-STA', '-Command', ps]);
+    return runAsync('powershell', ['-NoProfile', '-STA', '-Command', ps], 180000);
   }
-  if (hasCommand('zenity')) {
-    return runCaptured('zenity', [
-      '--file-selection',
-      '--title=选择 .gameart 库文件',
-      '--file-filter=GameArt 库 (*.gameart) | *.gameart',
-      '--file-filter=所有文件 | *',
-    ]);
-  }
-  if (hasCommand('kdialog')) {
-    return runCaptured('kdialog', ['--getopenfilename', os.homedir(), '*.gameart|GameArt 库']);
-  }
-  return null;
+  return (async () => {
+    const z = await runAsync(
+      'zenity',
+      [
+        '--file-selection',
+        '--title=选择 .gameart 库文件',
+        '--file-filter=GameArt 库 (*.gameart) | *.gameart',
+        '--file-filter=所有文件 | *',
+      ],
+      180000
+    );
+    if (z) return z;
+    return runAsync('kdialog', ['--getopenfilename', os.homedir(), '*.gameart|GameArt 库'], 180000);
+  })();
 }
 
-/** 新建 .gameart：同上 */
+/** 新建 .gameart → 路径或 null */
 function pickSaveFile(defaultName) {
   const name = defaultName || '我的游戏艺术库.gameart';
+  const d = electronDialog();
+  if (d && typeof d.save === 'function') {
+    try {
+      return Promise.resolve(d.save(name))
+        .then((p) => (p ? String(p) : null))
+        .catch(() => null);
+    } catch (e) {
+      /* 退回系统命令 */
+    }
+  }
   if (IS_WINDOWS) {
     const ps =
       "[Console]::OutputEncoding=[Text.Encoding]::UTF8; Add-Type -AssemblyName System.Windows.Forms; " +
@@ -205,21 +246,23 @@ function pickSaveFile(defaultName) {
       "$d.FileName = '" + name + "'; $d.Title = '新建 .gameart 库文件'; " +
       "$r = $d.ShowDialog($o); $o.Close(); " +
       "if ($r -eq [System.Windows.Forms.DialogResult]::OK) { [Console]::Out.Write($d.FileName) }";
-    return runCaptured('powershell', ['-NoProfile', '-STA', '-Command', ps]);
+    return runAsync('powershell', ['-NoProfile', '-STA', '-Command', ps], 180000);
   }
-  if (hasCommand('zenity')) {
-    return runCaptured('zenity', [
-      '--file-selection',
-      '--save',
-      '--title=新建 .gameart 库文件',
-      '--filename=' + path.join(os.homedir(), name),
-      '--file-filter=GameArt 库 (*.gameart) | *.gameart',
-    ]);
-  }
-  if (hasCommand('kdialog')) {
-    return runCaptured('kdialog', ['--getsavefilename', path.join(os.homedir(), name), '*.gameart|GameArt 库']);
-  }
-  return null;
+  return (async () => {
+    const z = await runAsync(
+      'zenity',
+      [
+        '--file-selection',
+        '--save',
+        '--title=新建 .gameart 库文件',
+        '--filename=' + path.join(os.homedir(), name),
+        '--file-filter=GameArt 库 (*.gameart) | *.gameart',
+      ],
+      180000
+    );
+    if (z) return z;
+    return runAsync('kdialog', ['--getsavefilename', path.join(os.homedir(), name), '*.gameart|GameArt 库'], 180000);
+  })();
 }
 
 module.exports = {
