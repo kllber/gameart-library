@@ -10,6 +10,7 @@
   <img alt="version" src="https://img.shields.io/badge/version-1.0.0-blue">
   <img alt="license" src="https://img.shields.io/badge/license-Apache--2.0-green">
   <img alt="platform" src="https://img.shields.io/badge/platform-Windows%20%7C%20Linux-0078D6">
+  <img alt="SteamOS" src="https://img.shields.io/badge/SteamOS-ready-1A9FFF?logo=steam&logoColor=white">
   <img alt="electron" src="https://img.shields.io/badge/electron-44-47848F">
   <img alt="downloads" src="https://img.shields.io/github/downloads/kllber/gameart-library/total?color=purple">
 </p>
@@ -19,7 +20,9 @@
 </p>
 
 <p>
-  <a href="https://github.com/kllber/gameart-library/releases/latest"><b>⬇ DOWNLOAD GAMEART LIBRARY</b></a>
+  <a href="https://github.com/kllber/gameart-library/releases/latest">
+    <img src="https://img.shields.io/badge/DOWNLOAD-GameArt%20Library%20v1.0.0-7c5cff?style=for-the-badge&logo=github" alt="Download" />
+  </a>
 </p>
 
 </div>
@@ -99,35 +102,49 @@ Switch UI language (Chinese/English) anytime; theme, accent color, card size, an
 
 ## 🚀 Download
 
-Grab the file for your OS from **[Releases](https://github.com/kllber/gameart-library/releases/latest)**.
+> **Open [Releases](https://github.com/kllber/gameart-library/releases/latest)** and grab the file for your OS.
+> **No installation** — the runtime is bundled, **no Node.js needed**; `.gameart` files are **interchangeable** between Windows and Linux.
 
 ### 🪟 Windows 10 / 11 (64-bit)
 
-1. Download **`GameArtLibrary-vX.Y.Z-win-x64.zip`**;
-2. Unzip anywhere;
-3. Run **`游戏艺术库.exe`**.
+| Step | Action |
+|:--:|---|
+| **1** | Download **`GameArtLibrary-vX.Y.Z-win-x64.zip`** |
+| **2** | **Unzip** anywhere (right-click → Extract All) |
+| **3** | Double-click **`游戏艺术库.exe`** |
 
-- ✅ **No installation** — the runtime is bundled, **no Node.js or dependencies required**.
-- ✅ **Caches/temp stay inside the folder** (`data\`, `tmp\`) — **nothing is written to C:**. Uninstall by deleting the folder.
+| ✅ No install | ✅ Self-contained data | ✅ Nothing left behind |
+|:--|:--|:--|
+| No dependencies required | Caches/temp stay in the unzipped folder (`data\`, `tmp\`) | **Never writes to C:** — uninstall = delete the folder |
 
 ### 🐧 Linux (SteamOS / Bazzite / Fedora / Ubuntu …)
 
-1. Download **`GameArtLibrary-vX.Y.Z-linux-x86_64.AppImage.tar.gz`**;
-2. **Extract it** (right-click → Extract) — the `.AppImage` inside **already has execute permission**, so you can **just double-click it and run**. **No commands needed.**
+| Step | Action |
+|:--:|---|
+| **1** | Download **`GameArtLibrary-vX.Y.Z-linux-x86_64.AppImage.tar.gz`** |
+| **2** | **Extract it** (right-click → Extract) |
+| **3** | **Double-click** the `.AppImage` inside → it just runs |
 
-   > If your file manager drops the permission: right-click the `.AppImage` → **Properties → Permissions** → tick “**Allow executing file as program**” (or run `chmod +x`).
+> [!TIP]
+> The extracted AppImage **already has execute permission**: **no commands, no install, no root**.
+> If your file manager drops the permission: right-click it → **Properties → Permissions** → tick “**Allow executing file as program**” (or run `chmod +x`).
 
-- ✅ Runs in **Desktop Mode**; **both the native and the Flatpak Steam are supported** (SteamOS / Bazzite).
-- ✅ Data goes to `~/.local/share/gameart-library` (cache: `~/.cache/gameart-library`) — no root, nothing written to system dirs.
-- ✅ The **`.gameart` file association is automatic** (set up on first launch): **double-click a library file to open it**, and `.gameart` gets a **dedicated icon**.
-- ⚠️ **Icons appear only after restarting Steam once**; covers / heroes / logos apply immediately.
-- 💡 No FUSE? Run with `APPIMAGE_EXTRACT_AND_RUN=1 ./GameArtLibrary-*.AppImage`.
+| ✅ Desktop Mode | ✅ Both Steam builds | ✅ Data location |
+|:--|:--|:--|
+| Runs in Desktop Mode | Native **and** Flatpak Steam supported | `~/.local/share/gameart-library` (cache: `~/.cache/gameart-library`) |
 
-### Quick start (3 steps)
+> [!NOTE]
+> - The **`.gameart` file association is automatic** (set up on first launch): double-click a library file to open it; it gets a **dedicated icon** too.
+> - **Icons appear only after restarting Steam once**; covers / heroes / logos apply **immediately**.
+> - No FUSE? Run with `APPIMAGE_EXTRACT_AND_RUN=1 ./GameArtLibrary-*.AppImage`.
 
-1. **Steam Web API** — Settings → Steam accounts → your [key](https://steamcommunity.com/dev/apikey) + SteamID/profile link (account “Game details” must be **public**);
-2. **SteamGridDB API** — Settings → SteamGridDB API → your [key](https://www.steamgriddb.com/profile/preferences/api);
-3. **Add games** — Add from Steam library / Search / Manual → pick artwork → done.
+### 🔑 Quick start (3 steps)
+
+| Step | Do this |
+|:--:|---|
+| **1** | **Steam Web API** → Settings → Steam accounts → your [key](https://steamcommunity.com/dev/apikey) (account “Game details” must be **public**) |
+| **2** | **SteamGridDB API** → Settings → SteamGridDB API → your [key](https://www.steamgriddb.com/profile/preferences/api) |
+| **3** | **Add games** → sidebar “Add from Steam library / Search / Manual” → pick artwork → done |
 
 ## 🔒 Safety & privacy
 

@@ -10,6 +10,7 @@
   <img alt="version" src="https://img.shields.io/badge/version-1.0.0-blue">
   <img alt="license" src="https://img.shields.io/badge/license-Apache--2.0-green">
   <img alt="platform" src="https://img.shields.io/badge/platform-Windows%20%7C%20Linux-0078D6">
+  <img alt="SteamOS" src="https://img.shields.io/badge/SteamOS-ready-1A9FFF?logo=steam&logoColor=white">
   <img alt="electron" src="https://img.shields.io/badge/electron-44-47848F">
   <img alt="downloads" src="https://img.shields.io/github/downloads/kllber/gameart-library/total?color=purple">
 </p>
@@ -19,7 +20,9 @@
 </p>
 
 <p>
-  <a href="https://github.com/kllber/gameart-library/releases/latest"><b>⬇ DOWNLOAD ｜ 下载 GAMEART LIBRARY</b></a>
+  <a href="https://github.com/kllber/gameart-library/releases/latest">
+    <img src="https://img.shields.io/badge/DOWNLOAD-GameArt%20Library%20v1.0.0-7c5cff?style=for-the-badge&logo=github" alt="Download" />
+  </a>
 </p>
 
 </div>
@@ -99,35 +102,49 @@
 
 ## 🚀 下载与安装
 
-打开 **[Releases](https://github.com/kllber/gameart-library/releases/latest)**，按你的系统下载对应文件。
+> **打开 [Releases](https://github.com/kllber/gameart-library/releases/latest)**，按你的系统下载对应文件。
+> **免安装**：运行环境已打包，**不需要 Node.js**；`.gameart` 库文件 **Windows 与 Linux 通用**。
 
 ### 🪟 Windows 10 / 11（64 位）
 
-1. 下载 **`GameArtLibrary-vX.Y.Z-win-x64.zip`**；
-2. **解压**到任意目录；
-3. 双击解压出来的 **`游戏艺术库.exe`**。
+| 步骤 | 操作 |
+|:--:|---|
+| **1** | 下载 **`GameArtLibrary-vX.Y.Z-win-x64.zip`** |
+| **2** | **解压**到任意目录（右键 → 全部解压） |
+| **3** | 双击解压出来的 **`游戏艺术库.exe`** |
 
-- ✅ **无需安装**：运行环境已打包在文件夹内，**不需要 Node.js 或任何依赖**。
-- ✅ **缓存/临时都在该文件夹内**（`data\`、`tmp\`），**不写 C 盘**；想卸载，删掉整个文件夹即可。
+| ✅ 免安装 | ✅ 数据在自己目录 | ✅ 无残留 |
+|:--|:--|:--|
+| 不需要装任何依赖 | 缓存/临时都在解压目录内（`data\`、`tmp\`） | **不写 C 盘**；卸载 = 删掉整个文件夹 |
 
 ### 🐧 Linux（SteamOS / Bazzite / Fedora / Ubuntu …）
 
-1. 下载 **`GameArtLibrary-vX.Y.Z-linux-x86_64.AppImage.tar.gz`**；
-2. **解压**（右键 → 解压）——解压出来的 `.AppImage` **已经带执行权限**，**直接双击就能运行**，**不需要敲任何命令**。
+| 步骤 | 操作 |
+|:--:|---|
+| **1** | 下载 **`GameArtLibrary-vX.Y.Z-linux-x86_64.AppImage.tar.gz`** |
+| **2** | **解压**（右键 → 解压） |
+| **3** | **双击**里面的 `.AppImage` → 直接运行 |
 
-   > 万一你的文件管理器解压时没保留权限：右键那个 `.AppImage` → **属性 → 权限** → 勾选「**允许作为程序执行**」即可（或终端 `chmod +x`）。
+> [!TIP]
+> 解压出来的 AppImage **已经带执行权限**：**不需要敲命令、不需要安装、不需要 root**。
+> 万一你的文件管理器解压时没保留权限：右键那个 `.AppImage` → **属性 → 权限** → 勾选「**允许作为程序执行**」（或终端 `chmod +x`）。
 
-- ✅ **桌面模式（Desktop Mode）** 运行；**SteamOS / Bazzite 的原生版与 Flatpak 版 Steam 都支持**。
-- ✅ 数据目录：`~/.local/share/gameart-library`（缓存 `~/.cache/gameart-library`）；不需要 root、不写系统目录。
-- ✅ **`.gameart` 文件关联默认自动完成**（启动即写好）：**双击库文件即可打开**，`.gameart` 也有**专属图标**。
-- ⚠️ 改了**图标（icon）**要**重启一次 Steam** 才会显示；封面 / 大背景 / Logo 即时生效。
-- 💡 系统若没有 FUSE：`APPIMAGE_EXTRACT_AND_RUN=1 ./GameArtLibrary-*.AppImage`。
+| ✅ 桌面模式 | ✅ 两种 Steam | ✅ 数据目录 |
+|:--|:--|:--|
+| 在 Desktop Mode 下运行 | 原生版与 Flatpak 版**都支持** | `~/.local/share/gameart-library`（缓存 `~/.cache/gameart-library`） |
 
-### 首次使用（三步）
+> [!NOTE]
+> - **`.gameart` 文件关联默认自动完成**（首次启动即写好）：双击库文件即可打开，`.gameart` 也有**专属图标**。
+> - 改了**图标（icon）**要**重启一次 Steam** 才会显示；封面 / 大背景 / Logo **即时生效**。
+> - 系统没有 FUSE 时，用 `APPIMAGE_EXTRACT_AND_RUN=1 ./GameArtLibrary-*.AppImage`。
 
-1. **Steam Web API**：设置 → Steam 账号 → 填 [Steam Web API Key](https://steamcommunity.com/dev/apikey) + SteamID/主页链接（账号「隐私设置 → 游戏详情」需**公开**）；
-2. **SteamGridDB API**：设置 → SteamGridDB API → 填 [SteamGridDB API Key](https://www.steamgriddb.com/profile/preferences/api)；
-3. **添加游戏**：侧栏「从 Steam 库添加 / 搜索添加 / 手动添加」→ 挑图 → 入库。
+### 🔑 首次使用（三步）
+
+| 步骤 | 做什么 |
+|:--:|---|
+| **1** | **Steam Web API** → 设置 → Steam 账号 → 填 [Steam Web API Key](https://steamcommunity.com/dev/apikey)（账号「隐私设置 → 游戏详情」需**公开**） |
+| **2** | **SteamGridDB API** → 设置 → SteamGridDB API → 填 [SteamGridDB API Key](https://www.steamgriddb.com/profile/preferences/api) |
+| **3** | **添加游戏** → 侧栏「从 Steam 库添加 / 搜索添加 / 手动添加」→ 挑图 → 入库 |
 
 ## 🔒 安全 · 隐私 · 合规
 
