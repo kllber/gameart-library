@@ -26,6 +26,7 @@ const PROGID = 'GameArtLibrary.gameart';
 const ROOT = path.resolve(__dirname, '..');
 
 const MIME = 'application/x-gameart';
+const MIME_ICON = MIME.replace(/\//g, '-'); // 图标文件名必须把 '/' 换成 '-'：application-x-gameart.png
 const DESKTOP_ID = 'gameart-library.desktop';
 const APP_ID = 'gameart-library';
 
@@ -195,7 +196,7 @@ function linuxPaths() {
     mimeDir: path.join(data, 'mime'),
     mimeXml: path.join(data, 'mime', 'packages', APP_ID + '.xml'),
     appIcon: path.join(data, 'icons', 'hicolor', '256x256', 'apps', APP_ID + '.png'),
-    mimeIcon: path.join(data, 'icons', 'hicolor', '256x256', 'mimetypes', MIME + '.png'),
+    mimeIcon: path.join(data, 'icons', 'hicolor', '256x256', 'mimetypes', MIME_ICON + '.png'),
     mimeapps: path.join(xdgConfigHome(), 'mimeapps.list'),
   };
 }
@@ -278,6 +279,15 @@ async function refreshLinuxDatabases(P) {
   const udd = findInPath('update-desktop-database');
   if (udd) await runAsync(udd, [P.appsDir]);
   else missing.push('update-desktop-database');
+  // 图标缓存刷新（很多系统本来就没装，缺失**不算** warning）
+  const gic = findInPath('gtk-update-icon-cache');
+  if (gic) {
+    try {
+      await runAsync(gic, ['-q', '-t', '-f', path.join(xdgDataHome(), 'icons', 'hicolor')]);
+    } catch (e) {
+      /* ignore */
+    }
+  }
   return missing.length ? '缺少命令：' + missing.join('、') + '（多数桌面仍可用，个别文件管理器需重新登录）' : null;
 }
 
@@ -289,22 +299,49 @@ function linuxStatus() {
   return { supported: true, registered, ext: EXT, command: linuxExec(), want: linuxExec(), icon: P.appIcon, desktopFile: P.desktop };
 }
 
+/** 把 PNG 装进 hicolor 图标主题：应用图标（apps/）+ `.gameart` 文件类型图标（mimetypes/） */
+function installLinuxIcons(P) {
+  const appSrc = path.join(ROOT, 'public', 'icon.png');
+  if (fs.existsSync(appSrc)) {
+    try {
+      fs.mkdirSync(path.dirname(P.appIcon), { recursive: true });
+      fs.copyFileSync(appSrc, P.appIcon);
+    } catch (e) {
+      /* ignore */
+    }
+  }
+  // 文件类型图标：优先多尺寸 public/fileicon/icon_<size>.png（tools/extract-ico.js 生成），否则退回 public/icon.png
+  let installed = 0;
+  const dir = path.join(ROOT, 'public', 'fileicon');
+  try {
+    for (const f of fs.readdirSync(dir)) {
+      const m = /^icon_(\d+)\.png$/i.exec(f);
+      if (!m) continue;
+      const s = m[1];
+      const dest = path.join(xdgDataHome(), 'icons', 'hicolor', s + 'x' + s, 'mimetypes', MIME_ICON + '.png');
+      fs.mkdirSync(path.dirname(dest), { recursive: true });
+      fs.copyFileSync(path.join(dir, f), dest);
+      installed++;
+    }
+  } catch (e) {
+    /* ignore */
+  }
+  if (!installed && fs.existsSync(appSrc)) {
+    try {
+      fs.mkdirSync(path.dirname(P.mimeIcon), { recursive: true });
+      fs.copyFileSync(appSrc, P.mimeIcon);
+    } catch (e) {
+      /* ignore */
+    }
+  }
+  return installed;
+}
+
 async function registerLinux() {
   const P = linuxPaths();
   fs.mkdirSync(P.appsDir, { recursive: true });
   fs.mkdirSync(path.dirname(P.mimeXml), { recursive: true });
-  // 图标（有就装：应用图标 + 文件类型图标）
-  const srcIcon = path.join(ROOT, 'public', 'icon.png');
-  if (fs.existsSync(srcIcon)) {
-    for (const dest of [P.appIcon, P.mimeIcon]) {
-      try {
-        fs.mkdirSync(path.dirname(dest), { recursive: true });
-        fs.copyFileSync(srcIcon, dest);
-      } catch (e) {
-        /* ignore */
-      }
-    }
-  }
+  installLinuxIcons(P);
   fs.writeFileSync(P.mimeXml, linuxMimeXml(), 'utf8');
   fs.writeFileSync(P.desktop, linuxDesktopFile(), 'utf8');
   try {
@@ -330,6 +367,19 @@ async function unregisterLinux() {
     /* ignore */
   }
   setMimeappsDefault(P.mimeapps, MIME, DESKTOP_ID, false);
+  // 清掉装过的图标（文件类型图标 + 应用图标）
+  for (const s of [16, 24, 32, 48, 64, 128, 256, 512]) {
+    try {
+      fs.rmSync(path.join(xdgDataHome(), 'icons', 'hicolor', s + 'x' + s, 'mimetypes', MIME_ICON + '.png'), { force: true });
+    } catch (e) {
+      /* ignore */
+    }
+  }
+  try {
+    fs.rmSync(P.appIcon, { force: true });
+  } catch (e) {
+    /* ignore */
+  }
   const warning = await refreshLinuxDatabases(P);
   return { ...linuxStatus(), warning };
 }
@@ -354,4 +404,20 @@ async function unregister() {
   throw new Error('文件关联目前仅支持 Windows / Linux');
 }
 
-module.exports = { getStatus, register, unregister, computeCommand, iconPath, PROGID, EXT, MIME, DESKTOP_ID, linuxPaths };
+/**
+ * **启动时自动关联**（仅桌面版调用）：未关联、或启动命令变了才写；已关联则什么都不做。
+ * 这样用户**不需要手动点**「关联到本软件」（Windows 与 Linux 一致）。
+ */
+async function autoRegister() {
+  try {
+    const s = getStatus();
+    if (!s.supported) return { ok: false, skipped: 'unsupported' };
+    if (s.registered && (!s.want || s.command === s.want)) return { ok: true, skipped: 'already' };
+    const r = await register();
+    return { ok: true, registered: !!r.registered, warning: r.warning || null };
+  } catch (e) {
+    return { ok: false, error: (e && e.message) || String(e) };
+  }
+}
+
+module.exports = { getStatus, register, unregister, autoRegister, computeCommand, iconPath, PROGID, EXT, MIME, DESKTOP_ID, linuxPaths };

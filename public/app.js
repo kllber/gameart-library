@@ -111,7 +111,7 @@ const I18N_EN = {
   '.gameart 文件关联': '.gameart file association',
   '关联到本软件': 'Associate with this app',
   '取消关联': 'Remove association',
-  '关联后，双击 .gameart 文件即可用本软件打开该库。': 'After associating, double-click a .gameart file to open it with this app.',
+  '双击 .gameart 文件即可用本软件打开该库（默认已自动关联；也可在此取消或重新关联）。': 'Double-click a .gameart file to open it with this app (associated automatically by default; remove or re-add it here).',
   '存储占用与清理': 'Storage & cleanup',
   '清理默认图缓存': 'Clear default-art cache',
   '清理备份': 'Clear backups',
@@ -2914,7 +2914,7 @@ async function loadStorage() {
     const el = $('storageInfo');
     if (el)
       el.textContent =
-        T('默认图缓存') + ' ' + fmtBytes(s.cacheBytes) + ' · ' + T('备份') + ' ' + fmtBytes(s.backupBytes) + ' · ' + T('临时') + ' ' + fmtBytes(s.tmpBytes) + T('（数据目录：') + s.dataDir + '）';
+        T('默认图缓存') + ' ' + fmtBytes(s.cacheBytes) + ' · ' + T('备份') + ' ' + fmtBytes(s.backupBytes) + ' · ' + T('临时') + ' ' + fmtBytes(s.tmpBytes) + (s.dataDir ? T('（数据目录：') + s.dataDir + '）' : '');
   } catch (e) {
     /* ignore */
   }

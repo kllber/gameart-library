@@ -61,18 +61,36 @@ fs.rmSync(SANDBOX, { recursive: true, force: true });
   check('  MIME xml 含 *.gameart glob', has(P.mimeXml, '<glob pattern="*.gameart"/>'));
   check('写 mimeapps 默认关联', has(P.mimeapps, 'application/x-gameart=gameart-library.desktop'));
   check('安装应用图标', fs.existsSync(P.appIcon));
-  check('安装文件类型图标', fs.existsSync(P.mimeIcon));
+  check('安装文件类型图标（256）', fs.existsSync(P.mimeIcon));
+
+  const sizes = [16, 32, 48, 64, 128, 256];
+  const installedIcons = sizes.filter((s) =>
+    fs.existsSync(path.join(process.env.XDG_DATA_HOME, 'icons', 'hicolor', s + 'x' + s, 'mimetypes', 'application-x-gameart.png'))
+  );
+  check('安装多尺寸文件类型图标（' + installedIcons.length + '/' + sizes.length + '）', installedIcons.length >= 5, installedIcons);
+  const srcIcon = path.join(ROOT, 'public', 'fileicon', 'icon_256.png');
+  check(
+    '文件类型图标内容 = .gameart 图标（不是通用 logo）',
+    fs.existsSync(srcIcon) && Buffer.compare(fs.readFileSync(srcIcon), fs.readFileSync(P.mimeIcon)) === 0
+  );
 
   check('缺命令时优雅降级（返回 warning 而非报错）', r.warning === null || typeof r.warning === 'string');
 
   const s1 = fileassoc.getStatus();
   check('注册后 registered=true', s1.registered === true, s1);
 
+  const a1 = await fileassoc.autoRegister();
+  check('已关联时 autoRegister 跳过（already）', a1.ok === true && a1.skipped === 'already', a1);
+
   await fileassoc.unregister();
   check('取消后 .desktop 已删', !fs.existsSync(P.desktop));
   check('取消后 MIME xml 已删', !fs.existsSync(P.mimeXml));
   check('取消后 mimeapps 里无我们的关联', !has(P.mimeapps, 'application/x-gameart=gameart-library.desktop'));
   check('取消后 registered=false', fileassoc.getStatus().registered === false);
+
+  const a2 = await fileassoc.autoRegister();
+  check('未关联时 autoRegister 会自动写入', a2.ok === true && !a2.skipped, a2);
+  check('autoRegister 后 registered=true', fileassoc.getStatus().registered === true);
 
   fs.rmSync(SANDBOX, { recursive: true, force: true });
   console.log(failed === 0 ? '\n全部通过 ✅' : '\n有 ' + failed + ' 项失败 ❌');

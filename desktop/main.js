@@ -326,6 +326,19 @@ app.whenReady().then(async () => {
     const f = pickGameartArg(process.argv); // 双击 .gameart 打开
     if (f) await httpPostJson(backendPort, '/api/workspace/open', { path: f });
     createWindow(backendPort);
+
+    // 默认自动关联 .gameart（未关联 / 安装位置变了才写），用户无需手动点「关联到本软件」
+    try {
+      const fileassoc = require('../src/fileassoc');
+      fileassoc
+        .autoRegister()
+        .then((r) => {
+          if (r && r.ok && !r.skipped) console.log('[assoc] 已自动关联 .gameart' + (r.warning ? '（' + r.warning + '）' : ''));
+        })
+        .catch(() => {});
+    } catch (e) {
+      /* ignore */
+    }
   } catch (e) {
     dialog.showErrorBox('启动失败', String((e && e.message) || e));
     app.quit();
