@@ -19,6 +19,7 @@ const TYPE_ORDER = ['portrait', 'grid', 'hero', 'logo', 'icon'];
 // 「关于」里的信息（可直接修改）
 const ABOUT_AUTHOR = 'kllber';
 const ABOUT_LICENSE = 'Apache-2.0';
+const ABOUT_URL = 'https://github.com/kllber/gameart-library'; // 项目主页（关于页可点击跳转）
 
 /* ---------------- 多语言（中/英）---------------- */
 const I18N_EN = {
@@ -121,6 +122,8 @@ const I18N_EN = {
   '作者': 'Author',
   '开源 / 许可': 'License',
   '素材来源': 'Artwork sources',
+  '项目主页（GitHub）': 'Project home (GitHub)',
+  '下载最新版（Releases）': 'Download latest (Releases)',
   '本软件本身不提供任何艺术作品，游戏的各种艺术素材图片均来自用户自己账号的 SteamGridDB API 与 Steam CDN。': 'This app provides no artwork itself; all art images come from the user’s own SteamGridDB API and the Steam CDN.',
   '运行环境': 'Runtime',
   '数据说明': 'Data notice',
@@ -246,6 +249,7 @@ const I18N_EN = {
   '已加入库（{0} 张）': 'Added to library ({0})',
   '已加入': 'Added',
   '这张图正在添加中…': 'This image is already being added…',
+  '这张图已加入库': 'This image is already in your library',
   '预览加载失败': 'Failed to load preview',
   '证书校验失败（公司代理/自签证书）。可在 设置→SteamGridDB API 勾选「证书失败时回退」。': 'Certificate verification failed (corporate proxy / self-signed). Enable “Fallback on certificate failure” in Settings → SteamGridDB API.',
   '网络连接失败或超时，请检查网络 / 代理后重试。': 'Network connection failed or timed out. Check your network / proxy and retry.',
@@ -2163,9 +2167,9 @@ function openArtPicker({ sgdbGameId, name, appid, type, mode }) {
   $('artGrid').hidden = false;
   $('btnArtMore').hidden = true;
   setArtStatus('');
+  $('artModal').hidden = false; // 先显示弹窗，再开始加载（loadArt 会检查"弹窗是否已关闭"）
   renderArtTabs();
   loadArt(true);
-  $('artModal').hidden = false;
 }
 
 async function doArtSearch() {
@@ -2249,8 +2253,21 @@ async function loadArt(reset) {
   state.art.cache = state.art.cache || {};
   let e = state.art.cache[ck];
   if (!e) e = state.art.cache[ck] = { items: [], nextPage: 0, done: false, loading: false, error: null };
+  // 内存缓存只保留最近几个 game:type，避免逛很多游戏后无限增长（结果本来就不落盘/不跨次复用）
+  const ckeys = Object.keys(state.art.cache);
+  if (ckeys.length > 6) {
+    for (const k of ckeys) {
+      if (k !== ck) delete state.art.cache[k];
+    }
+  }
 
   const stillMine = () => artGroup(state.art.type) === group && state.art.sgdbGameId === gid;
+  // 选图器已关闭 → 停止后台继续翻页（避免"关了弹窗还在拼命联网/拉起一堆 PowerShell"）
+  const pickerGone = () => {
+    const m = $('artModal');
+    return !!m && m.hidden;
+  };
+  const PAGE_CAP = 40; // 单类型最多翻 40 页（安全上限）
   renderArtGrid(e.items, { loading: !e.done && !e.error, error: e.error }); // 先渲染已有（空则显示"加载中"）
   if (e.done || e.loading) return;
   if (e.error) e.error = null; // 允许重试
@@ -2259,14 +2276,13 @@ async function loadArt(reset) {
   const myId = ++artReqSeq;
   try {
     while (!e.done) {
+      if (pickerGone()) return; // 弹窗已关：停止（e.loading 在 finally 收尾）
       const r = await api(
         '/api/sgdb/art?type=' + encodeURIComponent(group) + '&gameId=' + encodeURIComponent(gid) +
           '&page=' + e.nextPage + '&types=static,animated&nsfw=any&humor=any&epilepsy=any'
       );
-      if (myId !== artReqSeq) {
-        e.loading = false; // 已切到别的游戏/类型，放弃本次（保留已取部分，下次可续）
-        return;
-      }
+      if (myId !== artReqSeq) return; // 已切到别的游戏/类型，放弃本次（保留已取部分，下次可续）
+      if (pickerGone()) return;
       if (r.error) {
         e.error = r.error;
         break;
@@ -2274,14 +2290,15 @@ async function loadArt(reset) {
       const arts = r.arts || [];
       if (arts.length) e.items = e.items.concat(arts);
       e.nextPage++;
-      if (!r.hasMore || !arts.length) e.done = true;
+      if (!r.hasMore || !arts.length || e.nextPage >= PAGE_CAP) e.done = true;
       if (stillMine()) renderArtGrid(e.items, { loading: !e.done, error: null });
     }
   } catch (err) {
     e.error = err.message;
+  } finally {
+    e.loading = false;
   }
-  e.loading = false;
-  if (stillMine()) renderArtGrid(e.items, { loading: false, error: e.error });
+  if (stillMine() && !pickerGone()) renderArtGrid(e.items, { loading: false, error: e.error });
 }
 
 /** 单张艺术图单元格：动图用 <video>（默认不播放、悬停才播），其它用 <img> */
@@ -2463,7 +2480,7 @@ function friendlyNetError(msg) {
 }
 
 /* ---------------- 添加艺术图：队列化（可连点多张，串行下载，完成后统一刷新一次） ---------------- */
-const artAdd = { queue: [], busy: false, okCount: 0, currentKey: null, pendingRender: false, statusToken: 0 };
+const artAdd = { queue: [], busy: false, okCount: 0, currentKey: null, pendingRender: false, statusToken: 0, addedKeys: new Set() };
 
 function artKeyOf(a) {
   return a && a.sgdb_id != null ? 'id:' + a.sgdb_id : 'url:' + ((a && a.url) || '');
@@ -2472,11 +2489,17 @@ function artKeyOf(a) {
 /** 点图添加：入队（同一张重复点击会被忽略），状态条显示队列 */
 function enqueueAddArt(a) {
   const key = artKeyOf(a);
+  if (artAdd.addedKeys.has(key)) {
+    toast(T('这张图已加入库'));
+    return;
+  }
   if (artAdd.currentKey === key || artAdd.queue.some((x) => x.key === key)) {
     toast(T('这张图正在添加中…'));
     return;
   }
-  artAdd.queue.push({ a, key });
+  // 关键：入队时就固定"加到哪里"的上下文；否则排队期间用户切了类型/游戏会加错地方
+  const ctx = { appid: state.art.appid, name: state.art.name, sgdbGameId: state.art.sgdbGameId, type: state.art.type };
+  artAdd.queue.push({ a, key, ctx });
   setArtStatus(TP('正在下载，请稍等…（队列 {0}）', artAdd.queue.length), 'busy');
   pumpAddQueue();
 }
@@ -2489,8 +2512,11 @@ async function pumpAddQueue() {
       const item = artAdd.queue[0];
       artAdd.currentKey = item.key;
       setArtStatus(TP('正在下载，请稍等…（队列 {0}）', artAdd.queue.length), 'busy');
-      const ok = await doAddArt(item.a);
-      if (ok) markCellAdded(item.key);
+      const ok = await doAddArt(item.a, item.ctx);
+      if (ok) {
+        artAdd.addedKeys.add(item.key);
+        markCellAdded(item.key);
+      }
       artAdd.queue.shift();
       artAdd.currentKey = null;
       if (ok) artAdd.okCount++;
@@ -2509,26 +2535,28 @@ async function pumpAddQueue() {
   }
 }
 
-/** 真正执行一次添加；返回是否成功 */
-async function doAddArt(a) {
+/** 真正执行一次添加（ctx 是入队时固定的上下文）；返回是否成功 */
+async function doAddArt(a, ctx) {
+  ctx = ctx || { appid: state.art.appid, name: state.art.name, sgdbGameId: state.art.sgdbGameId, type: state.art.type };
   try {
-    let appid = state.art.appid;
+    let appid = ctx.appid;
     if (appid) {
-      await post('/api/library/add', { appid, name: state.art.name, sgdbGameId: state.art.sgdbGameId });
+      await post('/api/library/add', { appid, name: ctx.name, sgdbGameId: ctx.sgdbGameId });
     } else {
-      const r = await post('/api/library/add', { name: state.art.name, sgdbGameId: state.art.sgdbGameId });
+      const r = await post('/api/library/add', { name: ctx.name, sgdbGameId: ctx.sgdbGameId });
       if (!r.appid) {
         setArtStatus(friendlyNetError(r.error), 'err');
         return false;
       }
       appid = r.appid;
-      state.art.appid = appid;
+      // 仅当选图器仍停在同一个 SGDB 游戏时，才把新 appid 写回（避免用户已切走）
+      if (!state.art.appid && state.art.sgdbGameId === ctx.sgdbGameId) state.art.appid = appid;
     }
     const r = await post('/api/library/add-art', {
       appid,
-      name: state.art.name,
-      sgdbGameId: state.art.sgdbGameId,
-      type: state.art.type,
+      name: ctx.name,
+      sgdbGameId: ctx.sgdbGameId,
+      type: ctx.type,
       art: a,
     });
     if (!r.ok) {
@@ -2857,7 +2885,12 @@ async function openSettings(tab) {
   $('dbFile').textContent = s.dbFile;
   if ($('aboutVersion')) $('aboutVersion').textContent = s.version || '—';
   if ($('aboutRuntime') && s.runtime) $('aboutRuntime').textContent = 'Node ' + s.runtime.node + (s.runtime.electron ? ' · Electron ' + s.runtime.electron : '');
-  if ($('aboutAuthor')) $('aboutAuthor').textContent = ABOUT_AUTHOR;
+  if ($('aboutAuthor')) {
+    $('aboutAuthor').textContent = ABOUT_AUTHOR;
+    $('aboutAuthor').href = 'https://github.com/' + ABOUT_AUTHOR;
+  }
+  if ($('aboutHome')) $('aboutHome').href = ABOUT_URL;
+  if ($('aboutReleases')) $('aboutReleases').href = ABOUT_URL + '/releases/latest';
   if ($('aboutLicense')) $('aboutLicense').textContent = ABOUT_LICENSE;
   if ($('setSteamPath')) $('setSteamPath').textContent = (s.steamPaths || []).join('  |  ') || T('未检测到 Steam');
   if ($('dbSize')) $('dbSize').textContent = fmtBytes(s.dbSize);
