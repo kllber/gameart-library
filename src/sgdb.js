@@ -164,7 +164,7 @@ async function request(pathname, key) {
   // 已知 Node 会被拦 → 直接用系统 HTTP 栈（快）
   if (pshttp.available() && preferPs()) {
     try {
-      return pshttp.getJson(apiUrl(pathname), apiHeaders(key));
+      return await pshttp.getJson(apiUrl(pathname), apiHeaders(key));
     } catch (pe) {
       if (pe && pe.rateLimited) throw pe;
       if (!isTransient(pe) && !isCertError(pe)) throw pe; // 真的 4xx/解析错误 → 直接抛
@@ -240,7 +240,7 @@ async function request(pathname, key) {
       // ② Node 被网络拦截 → **立刻**改用系统 HTTP 栈（不先耗掉一堆重试，保证首屏快）
       if (pshttp.available() && (isCertError(e) || isTransient(e) || e.transient)) {
         try {
-          const j = pshttp.getJson(apiUrl(pathname), apiHeaders(key));
+          const j = await pshttp.getJson(apiUrl(pathname), apiHeaders(key));
           markPreferPs();
           return j;
         } catch (pe) {
@@ -354,14 +354,13 @@ function downloadTo(url, dest) {
           if (tries > 0 && isTransient(e)) {
             return setTimeout(() => attempt(insecure, tries - 1), 800); // 网络抖动重试
           }
-          // 最后兜底：系统 HTTP 栈下载
+          // 最后兜底：系统 HTTP 栈下载（异步，别阻塞主线程）
           if (pshttp.available() && (isCertError(e) || isTransient(e))) {
-            try {
-              pshttp.download(url, dest);
-              return resolve(dest);
-            } catch (pe) {
-              /* ignore */
-            }
+            pshttp
+              .download(url, dest)
+              .then(() => resolve(dest))
+              .catch(() => reject(e));
+            return;
           }
           reject(e);
         });

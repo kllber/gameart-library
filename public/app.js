@@ -242,6 +242,9 @@ const I18N_EN = {
   '（留空则不修改）': ' (leave blank to keep)',
   '证书失败时回退（公司代理 / 自签证书环境）': 'Fallback on certificate failure (corporate proxy / self-signed)',
   '正在下载，请稍等…': 'Downloading, please wait…',
+  '正在下载，请稍等…（队列 {0}）': 'Downloading, please wait… (queue {0})',
+  '已加入库（{0} 张）': 'Added to library ({0})',
+  '这张图正在添加中…': 'This image is already being added…',
   '预览加载失败': 'Failed to load preview',
   '证书校验失败（公司代理/自签证书）。可在 设置→SteamGridDB API 勾选「证书失败时回退」。': 'Certificate verification failed (corporate proxy / self-signed). Enable “Fallback on certificate failure” in Settings → SteamGridDB API.',
   '网络连接失败或超时，请检查网络 / 代理后重试。': 'Network connection failed or timed out. Check your network / proxy and retry.',
@@ -2364,7 +2367,7 @@ function makeArtCell(a) {
   }
   cell.innerHTML = info;
   cell.insertBefore(media, cell.firstChild);
-  cell.addEventListener('click', () => addArtToLibrary(a));
+  cell.addEventListener('click', () => enqueueAddArt(a));
   return cell;
 }
 
@@ -2433,7 +2436,6 @@ function renderArtGrid(all, opt) {
     : '';
 }
 
-let artAddBusy = false;
 function setArtStatus(text, cls) {
   const el = $('artStatus');
   if (!el) return;
@@ -2459,21 +2461,63 @@ function friendlyNetError(msg) {
   return s || T('下载失败');
 }
 
-async function addArtToLibrary(a) {
-  if (artAddBusy) return; // 防重复点击
-  artAddBusy = true;
-  setArtStatus(T('正在下载，请稍等…'), 'busy');
+/* ---------------- 添加艺术图：队列化（可连点多张，串行下载，完成后统一刷新一次） ---------------- */
+const artAdd = { queue: [], busy: false, okCount: 0, currentKey: null, pendingRender: false, statusToken: 0 };
+
+function artKeyOf(a) {
+  return a && a.sgdb_id != null ? 'id:' + a.sgdb_id : 'url:' + ((a && a.url) || '');
+}
+
+/** 点图添加：入队（同一张重复点击会被忽略），状态条显示队列 */
+function enqueueAddArt(a) {
+  const key = artKeyOf(a);
+  if (artAdd.currentKey === key || artAdd.queue.some((x) => x.key === key)) {
+    toast(T('这张图正在添加中…'));
+    return;
+  }
+  artAdd.queue.push({ a, key });
+  setArtStatus(TP('正在下载，请稍等…（队列 {0}）', artAdd.queue.length), 'busy');
+  pumpAddQueue();
+}
+
+async function pumpAddQueue() {
+  if (artAdd.busy) return;
+  artAdd.busy = true;
+  try {
+    while (artAdd.queue.length) {
+      const item = artAdd.queue[0];
+      artAdd.currentKey = item.key;
+      setArtStatus(TP('正在下载，请稍等…（队列 {0}）', artAdd.queue.length), 'busy');
+      const ok = await doAddArt(item.a);
+      artAdd.queue.shift();
+      artAdd.currentKey = null;
+      if (ok) artAdd.okCount++;
+    }
+  } finally {
+    artAdd.busy = false;
+    if (artAdd.okCount > 0) {
+      const token = ++artAdd.statusToken;
+      setArtStatus(TP('已加入库（{0} 张）', artAdd.okCount), 'ok');
+      setTimeout(() => {
+        if (artAdd.statusToken === token) setArtStatus('');
+      }, 1800);
+    }
+    artAdd.okCount = 0;
+    await refreshAfterAdds();
+  }
+}
+
+/** 真正执行一次添加；返回是否成功 */
+async function doAddArt(a) {
   try {
     let appid = state.art.appid;
     if (appid) {
-      // 目标游戏已存在：只把选中的 SGDB 游戏 id 记到它身上（不新建，用户自由选择任意游戏的封面）
       await post('/api/library/add', { appid, name: state.art.name, sgdbGameId: state.art.sgdbGameId });
     } else {
       const r = await post('/api/library/add', { name: state.art.name, sgdbGameId: state.art.sgdbGameId });
       if (!r.appid) {
         setArtStatus(friendlyNetError(r.error), 'err');
-        toast(r.error || T('加入失败'), true);
-        return;
+        return false;
       }
       appid = r.appid;
       state.art.appid = appid;
@@ -2485,24 +2529,44 @@ async function addArtToLibrary(a) {
       type: state.art.type,
       art: a,
     });
-    if (r.ok) {
-      setArtStatus(T('已加入库'), 'ok');
-      toast(T('已加入库'));
-      setTimeout(() => {
-        const el = $('artStatus');
-        if (el && !el.hidden && el.textContent === T('已加入库')) setArtStatus('');
-      }, 1800);
-    } else {
+    if (!r.ok) {
       setArtStatus(friendlyNetError(r.error), 'err');
-      toast(r.error || T('下载失败'), true);
+      return false;
     }
-    await loadLibrary();
-    // 若详情弹窗正开着同一游戏，刷新它
-    if (state.detail && String(state.detail.appid) === String(appid)) openDetail(appid);
+    return true;
   } catch (e) {
     setArtStatus(friendlyNetError(e && e.message), 'err');
-  } finally {
-    artAddBusy = false;
+    return false;
+  }
+}
+
+/** 添加完成后刷新库数据；**若选图器还开着就延后渲染**，避免"边下边整页重建"造成卡顿 */
+async function refreshAfterAdds() {
+  let data;
+  try {
+    data = await api('/api/library');
+  } catch (e) {
+    return;
+  }
+  state.games = data.games || [];
+  state.customOrders = data.customOrders || {};
+  state.catMemberOrder = data.catMemberOrder || {};
+  const pickerOpen = $('artModal') && !$('artModal').hidden;
+  if (pickerOpen) {
+    artAdd.pendingRender = true; // 关掉选图器再渲染
+    return;
+  }
+  render();
+  // 仅当详情弹窗"本来就开着"时才刷新它（修：以前会莫名弹出详情页）
+  if (state.detail && $('detailModal') && !$('detailModal').hidden) openDetail(state.detail.appid);
+}
+
+/** 关闭弹窗后的收尾：清详情状态；若选图器刚关掉且有挂起的渲染则补渲染 */
+function afterModalClose() {
+  if ($('detailModal') && $('detailModal').hidden) state.detail = null;
+  if ($('artModal') && $('artModal').hidden && artAdd.pendingRender) {
+    artAdd.pendingRender = false;
+    render();
   }
 }
 
@@ -3155,15 +3219,24 @@ function bind() {
   });
 
   document.querySelectorAll('[data-close]').forEach((b) => {
-    b.addEventListener('click', () => ($(b.dataset.close).hidden = true));
+    b.addEventListener('click', () => {
+      $(b.dataset.close).hidden = true;
+      afterModalClose();
+    });
   });
   document.querySelectorAll('.modal').forEach((m) => {
     m.addEventListener('click', (e) => {
-      if (e.target === m) m.hidden = true;
+      if (e.target === m) {
+        m.hidden = true;
+        afterModalClose();
+      }
     });
   });
   document.addEventListener('keydown', (e) => {
-    if (e.key === 'Escape') document.querySelectorAll('.modal').forEach((m) => (m.hidden = true));
+    if (e.key === 'Escape') {
+      document.querySelectorAll('.modal').forEach((m) => (m.hidden = true));
+      afterModalClose();
+    }
   });
 
   let searchTimer = 0;

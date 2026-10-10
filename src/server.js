@@ -74,7 +74,7 @@ const PUBLIC_DIR = path.join(ROOT, 'public');
 const HOST = '127.0.0.1';
 const PORT = Number(process.env.PORT || 5178);
 /** 版本号单一来源：前端从 /api/status 读取，避免多处硬编码对不上 */
-const APP_VERSION = 'v0.87';
+const APP_VERSION = 'v0.88';
 
 const MIME = {
   '.html': 'text/html; charset=utf-8',
@@ -579,7 +579,28 @@ async function handleApi(req, res, pathname, query) {
       return;
     }
     try {
-      const buf = Buffer.from(await global.__electronDev.capture(), 'base64');
+      let buf = Buffer.from(await global.__electronDev.capture(), 'base64');
+      // 可选 JPEG 输出（README 截图用，体积小很多）：?format=jpeg&q=82&maxw=1600
+      const fmt = String(query.get('format') || 'png').toLowerCase();
+      if (fmt === 'jpeg' || fmt === 'jpg') {
+        try {
+          const { nativeImage } = require('electron');
+          let img = nativeImage.createFromBuffer(buf);
+          const maxw = Number(query.get('maxw')) || 0;
+          const size = img.getSize();
+          if (maxw && size.width > maxw) {
+            const scale = maxw / size.width;
+            img = img.resize({ width: maxw, height: Math.round(size.height * scale) });
+          }
+          const q = Math.min(100, Math.max(1, Number(query.get('q')) || 82));
+          buf = img.toJPEG(q);
+          res.writeHead(200, { 'Content-Type': 'image/jpeg', 'Content-Length': buf.length });
+          res.end(buf);
+          return;
+        } catch (e) {
+          /* 回退 PNG */
+        }
+      }
       res.writeHead(200, { 'Content-Type': 'image/png', 'Content-Length': buf.length });
       res.end(buf);
     } catch (e) {

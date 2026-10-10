@@ -24,5 +24,3 @@ Thumbs.db
 .idea/
 .vscode/*
 !.vscode/extensions.json
-
-# 注意：维护约定.md 始终保留，不忽略
