@@ -2,6 +2,11 @@ name: build-linux-appimage
 
 on:
   workflow_dispatch:
+    inputs:
+      release_tag:
+        description: '把构建产物发布到该 Release 标签（留空=只上传 Artifact）'
+        required: false
+        default: ''
   push:
     branches: [main]
     paths:
@@ -12,6 +17,9 @@ on:
       - 'package.json'
       - 'package-lock.json'
       - '.github/workflows/build-linux-appimage.yml'
+
+permissions:
+  contents: write
 
 jobs:
   appimage:
@@ -44,9 +52,22 @@ jobs:
       - name: Show built files
         run: ls -lh dist || true
 
-      - name: Upload AppImage
+      - name: Upload AppImage artifact
         uses: actions/upload-artifact@v4
         with:
           name: GameArtLibrary-linux-AppImage
           path: dist/*.AppImage
           if-no-files-found: error
+
+      # 手动触发并给了 release_tag 时，直接把 AppImage 挂到该 Release（公开直链，免登录）
+      - name: Publish to Release
+        if: ${{ github.event_name == 'workflow_dispatch' && inputs.release_tag != '' }}
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          TAG="${{ inputs.release_tag }}"
+          if ! gh release view "$TAG" >/dev/null 2>&1; then
+            gh release create "$TAG" --prerelease --title "$TAG" --notes "Linux AppImage 构建（自动发布）。"
+          fi
+          gh release upload "$TAG" dist/*.AppImage --clobber
+          echo "已发布 → https://github.com/${{ github.repository }}/releases/tag/$TAG"
