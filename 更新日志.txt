@@ -18,7 +18,7 @@ v0.88  2026-10-10
 
 Linux 版
 - 支持 `.gameart` 文件关联：**默认自动关联**（启动即写好，无需手动点），双击 `.gameart` 即可打开；Windows 用注册表、Linux 用 freedesktop 标准，都不需要管理员/root。
-- Linux 上 `.gameart` **有专属图标**了（多尺寸，取自应用的 .gameart 图标）。
+- Linux 上 `.gameart` **有专属图标**了（多尺寸，取自应用的 .gameart 图标）。修复要点：MIME 图标名必须把 `application/x-gameart` 里的 `/` 换成 `-`——**文件路径与 XML 里的 `<icon>` 名称两处都要**（曾因 XML 名写成带斜杠而导致一直显示默认图标）。
 - 正式发布：Linux AppImage 已作为 **v0.88 正式 Release 附件**（与 Windows 便携包并列），README 增加 Linux 下载/安装说明（中英双语）。
 - 修复「图标」一直无效：官方 Steam 游戏的图标不在 config\grid，而在 Steam 的图标缓存
   （appcache/librarycache）。现在会正确写入该缓存（只替换哈希命名的图标文件，
