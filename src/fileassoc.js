@@ -187,6 +187,9 @@ function xdgDataHome() {
 function xdgConfigHome() {
   return process.env.XDG_CONFIG_HOME || path.join(os.homedir(), '.config');
 }
+function xdgCacheHome() {
+  return process.env.XDG_CACHE_HOME || path.join(os.homedir(), '.cache');
+}
 
 function linuxPaths() {
   const data = xdgDataHome();
@@ -284,6 +287,22 @@ async function refreshLinuxDatabases(P) {
   if (gic) {
     try {
       await runAsync(gic, ['-q', '-t', '-f', path.join(xdgDataHome(), 'icons', 'hicolor')]);
+    } catch (e) {
+      /* ignore */
+    }
+  }
+  // KDE：必须重建 sycoca + 清图标缓存，否则 Dolphin 仍显示旧的默认图标
+  if (/kde/i.test(process.env.XDG_CURRENT_DESKTOP || '')) {
+    const kb = findInPath('kbuildsycoca6') || findInPath('kbuildsycoca5') || findInPath('kbuildsycoca');
+    if (kb) {
+      try {
+        await runAsync(kb, ['--noincremental'], 30000);
+      } catch (e) {
+        /* ignore */
+      }
+    }
+    try {
+      fs.rmSync(path.join(xdgCacheHome(), 'icon-cache.kcache'), { force: true });
     } catch (e) {
       /* ignore */
     }
