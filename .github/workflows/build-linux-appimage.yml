@@ -23,7 +23,7 @@ permissions:
 
 jobs:
   appimage:
-    name: Build Linux AppImage
+    name: Build Linux AppImage (.tar.gz)
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
@@ -49,17 +49,25 @@ jobs:
           CSC_IDENTITY_AUTO_DISCOVERY: 'false'
           ELECTRON_BUILDER_CACHE: .cache/electron-builder
 
-      - name: Show built files
-        run: ls -lh dist || true
+      # 打成 .tar.gz：tar 会**保留可执行权限** → 用户解压出来的 AppImage 直接双击即可运行（无需 chmod）
+      - name: Package as .tar.gz (keeps the execute bit)
+        run: |
+          cd dist
+          for f in *.AppImage; do
+            chmod +x "$f"
+            tar -czf "${f}.tar.gz" "$f"
+            rm -f "$f"   # 不保留裸 AppImage（避免用户看到两种格式而困惑）
+          done
+          ls -lh
 
-      - name: Upload AppImage artifact
+      - name: Upload artifact
         uses: actions/upload-artifact@v4
         with:
-          name: GameArtLibrary-linux-AppImage
-          path: dist/*.AppImage
+          name: GameArtLibrary-linux-targz
+          path: dist/*.tar.gz
           if-no-files-found: error
 
-      # 手动触发并给了 release_tag 时，直接把 AppImage 挂到该 Release（公开直链，免登录）
+      # 手动触发并给了 release_tag 时，直接把 .tar.gz 挂到该 Release（公开直链，免登录）
       - name: Publish to Release
         if: ${{ github.event_name == 'workflow_dispatch' && inputs.release_tag != '' }}
         env:
@@ -69,5 +77,5 @@ jobs:
           if ! gh release view "$TAG" >/dev/null 2>&1; then
             gh release create "$TAG" --prerelease --title "$TAG" --notes "Linux AppImage 构建（自动发布）。"
           fi
-          gh release upload "$TAG" dist/*.AppImage --clobber
+          gh release upload "$TAG" dist/*.tar.gz --clobber
           echo "已发布 → https://github.com/${{ github.repository }}/releases/tag/$TAG"

@@ -7,7 +7,7 @@
 **统一管理并一键同步你喜爱的游戏自定义艺术作品到 Steam**
 
 <p>
-  <img alt="version" src="https://img.shields.io/badge/version-0.88-blue">
+  <img alt="version" src="https://img.shields.io/badge/version-1.0.0-blue">
   <img alt="license" src="https://img.shields.io/badge/license-Apache--2.0-green">
   <img alt="platform" src="https://img.shields.io/badge/platform-Windows%20%7C%20Linux-0078D6">
   <img alt="electron" src="https://img.shields.io/badge/electron-44-47848F">
@@ -112,21 +112,16 @@
 
 ### 🐧 Linux（SteamOS / Bazzite / Fedora / Ubuntu …）
 
-1. 下载 **`GameArtLibrary-vX.Y.Z-linux-x86_64.AppImage`**；
-2. 赋予可执行权限并运行：
+1. 下载 **`GameArtLibrary-vX.Y.Z-linux-x86_64.AppImage.tar.gz`**；
+2. **解压**（右键 → 解压）——解压出来的 `.AppImage` **已经带执行权限**，**直接双击就能运行**，**不需要敲任何命令**。
 
-   ```bash
-   chmod +x GameArtLibrary-*.AppImage
-   ./GameArtLibrary-*.AppImage
-   ```
-
-   （或在文件管理器里右键 → 属性 → 勾选「允许作为程序执行」，然后双击）
+   > 万一你的文件管理器解压时没保留权限：右键那个 `.AppImage` → **属性 → 权限** → 勾选「**允许作为程序执行**」即可（或终端 `chmod +x`）。
 
 - ✅ **桌面模式（Desktop Mode）** 运行；**SteamOS / Bazzite 的原生版与 Flatpak 版 Steam 都支持**。
 - ✅ 数据目录：`~/.local/share/gameart-library`（缓存 `~/.cache/gameart-library`）；不需要 root、不写系统目录。
-- ⚠️ **图标（icon）需要重启一次 Steam 后才会显示**；封面 / 大背景 / Logo 即时生效。
+- ✅ **`.gameart` 文件关联默认自动完成**（启动即写好）：**双击库文件即可打开**，`.gameart` 也有**专属图标**。
+- ⚠️ 改了**图标（icon）**要**重启一次 Steam** 才会显示；封面 / 大背景 / Logo 即时生效。
 - 💡 系统若没有 FUSE：`APPIMAGE_EXTRACT_AND_RUN=1 ./GameArtLibrary-*.AppImage`。
-- 💡 设置 → **库文件 → 「关联到本软件」**，即可让**双击 `.gameart` 直接打开**该库。
 
 ### 首次使用（三步）
 

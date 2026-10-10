@@ -7,7 +7,7 @@
 **Collect, back up and one-click apply your custom Steam artwork**
 
 <p>
-  <img alt="version" src="https://img.shields.io/badge/version-0.88-blue">
+  <img alt="version" src="https://img.shields.io/badge/version-1.0.0-blue">
   <img alt="license" src="https://img.shields.io/badge/license-Apache--2.0-green">
   <img alt="platform" src="https://img.shields.io/badge/platform-Windows%20%7C%20Linux-0078D6">
   <img alt="electron" src="https://img.shields.io/badge/electron-44-47848F">
@@ -112,21 +112,16 @@ Grab the file for your OS from **[Releases](https://github.com/kllber/gameart-li
 
 ### 🐧 Linux (SteamOS / Bazzite / Fedora / Ubuntu …)
 
-1. Download **`GameArtLibrary-vX.Y.Z-linux-x86_64.AppImage`**;
-2. Make it executable and run:
+1. Download **`GameArtLibrary-vX.Y.Z-linux-x86_64.AppImage.tar.gz`**;
+2. **Extract it** (right-click → Extract) — the `.AppImage` inside **already has execute permission**, so you can **just double-click it and run**. **No commands needed.**
 
-   ```bash
-   chmod +x GameArtLibrary-*.AppImage
-   ./GameArtLibrary-*.AppImage
-   ```
-
-   (or right-click → Properties → allow executing as a program, then double-click)
+   > If your file manager drops the permission: right-click the `.AppImage` → **Properties → Permissions** → tick “**Allow executing file as program**” (or run `chmod +x`).
 
 - ✅ Runs in **Desktop Mode**; **both the native and the Flatpak Steam are supported** (SteamOS / Bazzite).
 - ✅ Data goes to `~/.local/share/gameart-library` (cache: `~/.cache/gameart-library`) — no root, nothing written to system dirs.
+- ✅ The **`.gameart` file association is automatic** (set up on first launch): **double-click a library file to open it**, and `.gameart` gets a **dedicated icon**.
 - ⚠️ **Icons appear only after restarting Steam once**; covers / heroes / logos apply immediately.
 - 💡 No FUSE? Run with `APPIMAGE_EXTRACT_AND_RUN=1 ./GameArtLibrary-*.AppImage`.
-- 💡 Settings → **Library → “Associate with this app”** makes **double-clicking a `.gameart` open it** directly.
 
 ### Quick start (3 steps)
 

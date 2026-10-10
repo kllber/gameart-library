@@ -74,7 +74,7 @@ const PUBLIC_DIR = path.join(ROOT, 'public');
 const HOST = '127.0.0.1';
 const PORT = Number(process.env.PORT || 5178);
 /** 版本号单一来源：前端从 /api/status 读取，避免多处硬编码对不上 */
-const APP_VERSION = 'v0.88';
+const APP_VERSION = 'v1.0.0';
 
 const MIME = {
   '.html': 'text/html; charset=utf-8',
