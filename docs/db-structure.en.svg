@@ -1,0 +1,148 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1280" height="1000" viewBox="0 0 1280 1000" font-family="Segoe UI, PingFang SC, Microsoft YaHei, sans-serif">
+  <defs>
+    <linearGradient id="bg" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0" stop-color="#0b1020"/>
+      <stop offset="0.55" stop-color="#141b34"/>
+      <stop offset="1" stop-color="#241a3d"/>
+    </linearGradient>
+    <linearGradient id="brand" x1="0" y1="0" x2="1" y2="0">
+      <stop offset="0" stop-color="#4cc9ff"/>
+      <stop offset="1" stop-color="#b06bff"/>
+    </linearGradient>
+    <linearGradient id="core" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0" stop-color="#b06bff"/>
+      <stop offset="1" stop-color="#ff6bd6"/>
+    </linearGradient>
+    <radialGradient id="glow1" cx="0.12" cy="0.12" r="0.55">
+      <stop offset="0" stop-color="#4cc9ff" stop-opacity="0.30"/>
+      <stop offset="1" stop-color="#4cc9ff" stop-opacity="0"/>
+    </radialGradient>
+    <radialGradient id="glow2" cx="0.92" cy="0.95" r="0.6">
+      <stop offset="0" stop-color="#b06bff" stop-opacity="0.30"/>
+      <stop offset="1" stop-color="#b06bff" stop-opacity="0"/>
+    </radialGradient>
+    <marker id="arw" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse">
+      <path d="M 0 0 L 10 5 L 0 10 z" fill="#7f8fb3"/>
+    </marker>
+  </defs>
+
+  <rect width="1280" height="1000" fill="url(#bg)"/>
+  <rect width="1280" height="1000" fill="url(#glow1)"/>
+  <rect width="1280" height="1000" fill="url(#glow2)"/>
+
+  <!-- Title -->
+  <text x="60" y="76" font-size="40" font-weight="800" fill="#ffffff">.gameart Library Structure</text>
+  <text x="62" y="110" font-size="17" fill="#9fb0d0">single-file <tspan fill="#4cc9ff" font-weight="600">SQLite</tspan> · images embedded as <tspan fill="#b06bff" font-weight="600">BLOBs</tspan> · <tspan fill="#c9d4ea" font-weight="700">copy this one file = full backup</tspan> · Windows / Linux</text>
+
+  <!-- File container -->
+  <rect x="60" y="140" width="1160" height="760" rx="22" fill="#ffffff07" stroke="#ffffff22"/>
+  <text x="92" y="180" font-size="19" font-weight="700" fill="#e9f0ff">📄  My Library.gameart</text>
+  <text x="92" y="205" font-size="14" fill="#8fa0c0">A plain SQLite database file (4 KB pages · incremental auto-vacuum · no WAL) — any SQLite tool can open it directly</text>
+
+  <!-- games -->
+  <rect x="92" y="230" width="340" height="250" rx="14" fill="#0d1223" stroke="#4cc9ff" stroke-opacity="0.45"/>
+  <circle cx="114" cy="258" r="6" fill="#4cc9ff"/>
+  <text x="130" y="264" font-size="18" font-weight="700" fill="#ffffff">games</text>
+  <text x="412" y="264" font-size="13" fill="#8fa0c0" text-anchor="end">1 row = 1 game</text>
+  <line x1="110" y1="280" x2="414" y2="280" stroke="#ffffff14"/>
+  <text x="112" y="308" font-size="14" fill="#c9d4ea"><tspan fill="#4cc9ff" font-weight="700">appid</tspan> (primary key)</text>
+  <text x="112" y="334" font-size="14" fill="#c9d4ea">name / name_zh　English / Chinese name</text>
+  <text x="112" y="360" font-size="14" fill="#c9d4ea">sgdb_id　SteamGridDB game id</text>
+  <text x="112" y="386" font-size="14" fill="#c9d4ea">added_at　insert time ("date added" sort)</text>
+  <text x="112" y="412" font-size="14" fill="#c9d4ea">deleted / deleted_at　<tspan fill="#ffd166">recycle bin (soft delete)</tspan></text>
+  <text x="112" y="446" font-size="13" fill="#7f8fb3">One game = AppID + names + categories + bin state</text>
+
+  <!-- art -->
+  <rect x="490" y="230" width="698" height="250" rx="14" fill="#120d24" stroke="#b06bff" stroke-opacity="0.6" stroke-width="1.5"/>
+  <circle cx="512" cy="258" r="6" fill="url(#core)"/>
+  <text x="528" y="264" font-size="18" font-weight="700" fill="#ffffff">art</text>
+  <text x="536" y="264" font-size="13" fill="#ff8ad0">　★ the image itself lives here</text>
+  <text x="1170" y="264" font-size="13" fill="#8fa0c0" text-anchor="end">artwork (several images per type)</text>
+  <line x1="508" y1="280" x2="1170" y2="280" stroke="#ffffff14"/>
+  <text x="510" y="308" font-size="14" fill="#c9d4ea"><tspan fill="#b06bff" font-weight="700">appid</tspan>　which game　·　<tspan fill="#b06bff" font-weight="700">type</tspan>　portrait / grid / hero / logo / icon</text>
+  <rect x="506" y="320" width="666" height="30" rx="8" fill="#b06bff" fill-opacity="0.14"/>
+  <text x="518" y="340" font-size="14" fill="#f3e8ff"><tspan fill="#d9b8ff" font-weight="700">data</tspan>　BLOB ← <tspan font-weight="700">the image</tspan> (~97% of the file size)　·　<tspan fill="#d9b8ff" font-weight="700">preview</tspan>　BLOB ← <tspan font-weight="700">animated .webm</tspan></text>
+  <text x="510" y="378" font-size="14" fill="#c9d4ea">mime / file　extension used when writing to Steam (<tspan fill="#8fa0c0">.webp → saved as .png</tspan>)</text>
+  <text x="510" y="404" font-size="14" fill="#c9d4ea">selected　<tspan fill="#7ee0c0" font-weight="600">the active one</tspan> (this is what gets synced)　·　sort　gallery order</text>
+  <text x="510" y="430" font-size="14" fill="#c9d4ea">url / sgdb_id　a "<tspan fill="#ffd166">recipe</tspan>": re-download if the image is lost</text>
+  <text x="510" y="462" font-size="13" fill="#7f8fb3">One image = one row; bytes are stored right in the row — that is the "vault"</text>
+
+  <!-- settings -->
+  <rect x="92" y="505" width="340" height="175" rx="14" fill="#0d1223" stroke="#ffffff1f"/>
+  <circle cx="114" cy="533" r="6" fill="#7ee0c0"/>
+  <text x="130" y="539" font-size="18" font-weight="700" fill="#ffffff">settings</text>
+  <text x="412" y="539" font-size="13" fill="#8fa0c0" text-anchor="end">library settings (key/value)</text>
+  <line x1="110" y1="555" x2="414" y2="555" stroke="#ffffff14"/>
+  <text x="112" y="583" font-size="13.5" fill="#c9d4ea">sgdb_api_key / steam_api_key　your keys (<tspan fill="#7ee0c0">local only</tspan>)</text>
+  <text x="112" y="607" font-size="13.5" fill="#c9d4ea">ui　theme / accent / card size / animated covers</text>
+  <text x="112" y="631" font-size="13.5" fill="#c9d4ea">custom_order_map　<tspan fill="#ffd166">per-view</tspan> custom order</text>
+  <text x="112" y="655" font-size="13.5" fill="#c9d4ea">fill_queue / name_zh_none　art queue / no-CN-name list</text>
+
+  <!-- steam_accounts -->
+  <rect x="490" y="505" width="300" height="175" rx="14" fill="#0d1223" stroke="#ffffff1f"/>
+  <circle cx="512" cy="533" r="6" fill="#4cc9ff"/>
+  <text x="528" y="539" font-size="18" font-weight="700" fill="#ffffff">steam_accounts</text>
+  <line x1="508" y1="555" x2="772" y2="555" stroke="#ffffff14"/>
+  <text x="510" y="583" font-size="13.5" fill="#c9d4ea"><tspan fill="#4cc9ff" font-weight="700">steam_id64</tspan> (primary key)</text>
+  <text x="510" y="607" font-size="13.5" fill="#c9d4ea">persona / avatar</text>
+  <text x="510" y="631" font-size="13.5" fill="#c9d4ea">api_key　each account can use its own</text>
+  <text x="510" y="655" font-size="13.5" fill="#8fa0c0">used to read which games you own</text>
+
+  <!-- owned_games -->
+  <rect x="830" y="505" width="358" height="175" rx="14" fill="#0d1223" stroke="#ffffff1f"/>
+  <circle cx="852" cy="533" r="6" fill="#4cc9ff"/>
+  <text x="868" y="539" font-size="18" font-weight="700" fill="#ffffff">owned_games</text>
+  <text x="1170" y="539" font-size="13" fill="#8fa0c0" text-anchor="end">owned list</text>
+  <line x1="848" y1="555" x2="1170" y2="555" stroke="#ffffff14"/>
+  <text x="850" y="583" font-size="13.5" fill="#c9d4ea"><tspan fill="#4cc9ff" font-weight="700">steam_id64</tspan> + <tspan fill="#4cc9ff" font-weight="700">appid</tspan> (composite key)</text>
+  <text x="850" y="607" font-size="13.5" fill="#c9d4ea">name / playtime</text>
+  <text x="850" y="631" font-size="13.5" fill="#c9d4ea">source list for "Add from Steam library"</text>
+  <text x="850" y="655" font-size="13.5" fill="#7ee0c0">game names are taken from here</text>
+
+  <!-- categories -->
+  <rect x="92" y="705" width="340" height="175" rx="14" fill="#0d1223" stroke="#ffffff1f"/>
+  <circle cx="114" cy="733" r="6" fill="#ffd166"/>
+  <text x="130" y="739" font-size="18" font-weight="700" fill="#ffffff">categories</text>
+  <text x="412" y="739" font-size="13" fill="#8fa0c0" text-anchor="end">custom categories</text>
+  <line x1="110" y1="755" x2="414" y2="755" stroke="#ffffff14"/>
+  <text x="112" y="783" font-size="13.5" fill="#c9d4ea"><tspan fill="#ffd166" font-weight="700">id</tspan> (primary key)</text>
+  <text x="112" y="807" font-size="13.5" fill="#c9d4ea">name　RPG / FPS / …</text>
+  <text x="112" y="831" font-size="13.5" fill="#c9d4ea">sort　category order</text>
+  <text x="112" y="857" font-size="13.5" fill="#8fa0c0">deleting a category only unlinks games</text>
+
+  <!-- game_categories -->
+  <rect x="490" y="705" width="300" height="175" rx="14" fill="#0d1223" stroke="#ffffff1f"/>
+  <circle cx="512" cy="733" r="6" fill="#ffd166"/>
+  <text x="528" y="739" font-size="18" font-weight="700" fill="#ffffff">game_categories</text>
+  <line x1="508" y1="755" x2="772" y2="755" stroke="#ffffff14"/>
+  <text x="510" y="783" font-size="13.5" fill="#c9d4ea"><tspan fill="#ffd166" font-weight="700">category_id</tspan> + <tspan fill="#ffd166" font-weight="700">appid</tspan></text>
+  <text x="510" y="807" font-size="13.5" fill="#c9d4ea">game ↔ category mapping</text>
+  <text x="510" y="831" font-size="13.5" fill="#c9d4ea">many-to-many</text>
+  <text x="510" y="857" font-size="13.5" fill="#8fa0c0">"join order" also comes from here</text>
+
+  <!-- design notes -->
+  <rect x="830" y="705" width="358" height="175" rx="14" fill="#0e1a1a" stroke="#7ee0c0" stroke-opacity="0.35"/>
+  <text x="852" y="739" font-size="18" font-weight="700" fill="#7ee0c0">Design notes</text>
+  <line x1="848" y1="755" x2="1170" y2="755" stroke="#ffffff14"/>
+  <text x="850" y="783" font-size="13.5" fill="#c9d4ea">① images embedded → copy one file = full backup</text>
+  <text x="850" y="807" font-size="13.5" fill="#c9d4ea">② list API returns metadata only (<tspan fill="#7ee0c0">no BLOBs</tspan>)</text>
+  <text x="850" y="831" font-size="13.5" fill="#c9d4ea">③ deleting a game = soft delete (recycle bin)</text>
+  <text x="850" y="855" font-size="13.5" fill="#c9d4ea">④ url / sgdb_id are a "recipe" → re-downloadable</text>
+
+  <!-- relations -->
+  <line x1="432" y1="350" x2="486" y2="350" stroke="#7f8fb3" stroke-width="1.6" marker-end="url(#arw)"/>
+  <text x="459" y="340" font-size="12.5" fill="#9fb0d0" text-anchor="middle">1 : N</text>
+
+  <polyline points="432,430 461,430 461,750 486,750" fill="none" stroke="#7f8fb3" stroke-width="1.6" marker-end="url(#arw)"/>
+  <text x="461" y="600" font-size="12.5" fill="#9fb0d0" text-anchor="middle">1 : N</text>
+
+  <line x1="432" y1="800" x2="486" y2="800" stroke="#7f8fb3" stroke-width="1.6" marker-end="url(#arw)"/>
+  <text x="459" y="790" font-size="12.5" fill="#9fb0d0" text-anchor="middle">1 : N</text>
+
+  <line x1="790" y1="592" x2="826" y2="592" stroke="#7f8fb3" stroke-width="1.6" marker-end="url(#arw)"/>
+  <text x="808" y="582" font-size="12.5" fill="#9fb0d0" text-anchor="middle">1 : N</text>
+
+  <!-- legend -->
+  <text x="92" y="938" font-size="14" fill="#9fb0d0">Legend: <tspan fill="#4cc9ff" font-weight="700">coloured field = primary key</tspan>　·　1 : N = one-to-many　·　<tspan fill="#b06bff" font-weight="700">art</tspan> is the core table (it holds the images)　·　openable with any SQLite tool</text>
+  <text x="92" y="966" font-size="14" fill="#7f8fb3">Tip: to look inside, <tspan fill="#ffd166" font-weight="600">copy the file first</tspan>, then open it with DB Browser for SQLite (don't edit it while the app is running).</text>
+</svg>

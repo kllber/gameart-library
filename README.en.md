@@ -54,7 +54,7 @@ One SQLite container with **images embedded as BLOBs**: copy the file for a full
 
 A `.gameart` file is just a **plain SQLite database** (no custom format) with **images embedded as BLOBs** — so **copying that single file is a complete backup**, and it opens on both Windows and Linux.
 
-<img src="docs/db-structure.svg" alt=".gameart library structure" width="100%">
+<img src="docs/db-structure.en.svg" alt=".gameart library structure" width="100%">
 
 > 💡 **Want to look inside?** **Copy the file first**, then open it with [DB Browser for SQLite](https://sqlitebrowser.org/) (don't edit it while the app is running). Handy queries:
 > `SELECT appid, name, name_zh FROM games WHERE COALESCE(deleted,0)=0;` (your games) ·

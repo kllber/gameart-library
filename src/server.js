@@ -88,6 +88,7 @@ const MIME = {
   '.gif': 'image/gif',
   '.ico': 'image/x-icon',
   '.bmp': 'image/bmp',
+  '.svg': 'image/svg+xml',
 };
 
 function sendJson(res, code, obj) {
