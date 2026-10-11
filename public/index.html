@@ -186,7 +186,13 @@
             <button class="snav sub" data-tab="sgdb">SteamGridDB API</button>
             <button class="snav sub" data-tab="steam">Steam 账号</button>
           </div>
-          <button class="snav" data-tab="library">库文件</button>
+          <button class="snav group" data-group="library"><span class="snav-label">库文件</span><span class="caret">▾</span></button>
+          <div class="snav-sub" data-group="library" hidden>
+            <button class="snav sub" data-tab="libinfo">库文件信息</button>
+            <button class="snav sub" data-tab="libjobs">补全与生成</button>
+            <button class="snav sub" data-tab="libstorage">存储与清理</button>
+            <button class="snav sub" data-tab="libassoc">文件关联</button>
+          </div>
           <button class="snav" data-tab="about">关于</button>
           <div class="snav-spacer"></div>
           <button class="btn ghost block snav-action" id="btnSwitchLib">⇄ 切换 / 打开其他库文件</button>
@@ -278,7 +284,7 @@
           <section class="spanel" data-panel="steam" hidden>
             <h3>Steam 账号（Web API）</h3>
             <p class="hint" style="margin:-8px 0 16px">用途：读取你拥有的游戏（用于「从 Steam 库添加」），并读取本机 Steam 数据以写入自定义封面。需要 Steam Web API Key，且账号「游戏详情」设为公开。</p>
-            <p class="hint" style="margin:-8px 0 16px"><b>支持同时绑定多个账号</b>：每个账号单独填一次（SteamID + 该账号的 Key）。绑定后「从 Steam 库添加」会把所有账号拥有的游戏合并列出；同步到 Steam 时也会<b>同时写入本机所有账号</b>的封面。</p>
+            <p class="hint" style="margin:-8px 0 16px">支持同时绑定多个账号：每个账号单独填一次（SteamID + 该账号的 Key）。绑定后「从 Steam 库添加」会把所有账号拥有的游戏合并列出；同步到 Steam 时也会同时写入本机所有账号的封面。</p>
             <h3 style="margin-top:8px"><span class="h3-label">已绑定</span> <span class="muted" id="steamAcctCount"></span></h3>
             <div id="steamAccounts" class="acct-list"></div>
             <div class="field">
@@ -301,17 +307,71 @@
             </div>
           </section>
 
-          <section class="spanel" data-panel="library" hidden>
-            <h3>库文件</h3>
-            <div class="field"><label>当前库文件</label><code id="dbFile">—</code></div>
-            <div class="field"><label>库文件大小</label><div id="dbSize">—</div></div>            <div class="field">
+          <section class="spanel" data-panel="libinfo" hidden>
+            <h3>库文件信息</h3>
+            <div class="field">
+              <label>当前库文件</label>
+              <div class="lib-name" id="dbName">—</div>
+              <code id="dbFile">—</code>
+              <p class="hint" id="dbFileWarn" hidden></p>
+            </div>
+            <div class="field"><label>库文件大小</label><div id="dbSize">—</div></div>
+            <div class="field">
+              <label>数据位置</label>
+              <code id="dataDirPath">—</code>
+              <p class="hint">本软件的数据与缓存都放在这个目录里。</p>
+              <p class="hint">不会散落到系统其它位置。</p>
+            </div>
+          </section>
+
+          <section class="spanel" data-panel="libjobs" hidden>
+            <h3>补全与生成</h3>
+            <div class="field">
               <label>默认图补全</label>
               <div class="row-inline">
                 <button class="btn ghost" id="btnFillDefaults">补全默认图（后台）</button>
               </div>
-              <p class="hint">为库里「还没有图」的游戏补上 Steam 默认图；中途关掉软件也没关系，下次打开该库会自动继续。</p>
+              <p class="hint">为库里「还没有图」的游戏补上 Steam 默认图。</p>
+              <p class="hint">中途关掉软件也没关系：下次打开该库会自动继续。</p>
             </div>
-            <div class="field"><label>数据位置</label><div class="hint">本软件的数据与缓存都放在一个独立的数据目录里，不会散落到系统其它位置。</div></div>
+            <div class="field setting-sec">
+              <label class="check"><input type="checkbox" id="setThumbs" checked /><span class="check-label">图片缩略图（浏览更流畅）</span></label>
+              <div class="row-inline">
+                <button class="btn ghost" id="btnWarmThumbs">生成缩略图（后台）</button>
+                <span class="hint" id="thumbHint"></span>
+              </div>
+              <p class="hint">为大图生成「显示用缩略图」，滚动与切换显示更顺滑。</p>
+              <p class="hint">只存在缓存目录（可随缓存清理），不会改动库里的原图。</p>
+              <p class="hint">生成过程没有任何「待办状态」：中途关掉软件，下次打开会自动继续补齐。</p>
+            </div>
+          </section>
+
+          <section class="spanel" data-panel="libstorage" hidden>
+            <h3>存储与清理</h3>
+            <div class="field">
+              <label>占用总览</label>
+              <div class="hint" id="storageInfo">—</div>
+              <p class="hint">这些缓存/临时文件都在上面的数据目录内，可一键释放空间。</p>
+            </div>
+            <div class="field">
+              <label>库内艺术图占用</label>
+              <div id="artUsageTable"></div>
+              <p class="hint">这是你库里所有艺术图的总大小（含动图预览），不等于库文件大小。</p>
+            </div>
+            <div class="field setting-sec">
+              <label>清理</label>
+              <div class="row-inline">
+                <button class="btn ghost" id="btnCleanCache">清理默认图缓存</button>
+                <button class="btn ghost" id="btnCleanBackups">清理备份</button>
+                <button class="btn ghost" id="btnCleanTmp">清理临时文件</button>
+              </div>
+              <p class="hint">清理缓存 / 备份不影响 .gameart 里的艺术作品。</p>
+              <p class="hint">缩略图会一起清掉，之后浏览时会自动重新生成。</p>
+            </div>
+          </section>
+
+          <section class="spanel" data-panel="libassoc" hidden>
+            <h3>文件关联</h3>
             <div class="field">
               <label>.gameart 文件关联</label>
               <div class="row-inline">
@@ -320,26 +380,8 @@
                 <button class="btn ghost" id="btnMakeShortcut" hidden>创建桌面快捷方式</button>
                 <span class="hint" id="assocStatus"></span>
               </div>
-              <p class="hint">双击 .gameart 文件即可用本软件打开该库（默认已自动关联；也可在此取消或重新关联）。</p>
-            </div>
-            <div class="field">
-              <label>存储占用与清理</label>
-              <div class="hint" id="storageInfo">—</div>
-              <div class="row-inline">
-                <button class="btn ghost" id="btnCleanCache">清理默认图缓存</button>
-                <button class="btn ghost" id="btnCleanBackups">清理备份</button>
-                <button class="btn ghost" id="btnCleanTmp">清理临时文件</button>
-              </div>
-              <p class="hint">缓存/临时文件都在上面的数据目录内，可用按钮释放空间；清理缓存/备份不影响 .gameart 库里的艺术作品（缩略图也会一起清掉，之后会自动重新生成）。</p>
-              <p class="hint" id="artUsage"></p>
-            </div>
-            <div class="field">
-              <label class="check"><input type="checkbox" id="setThumbs" checked /><span class="check-label">图片缩略图（浏览更流畅）</span></label>
-              <div class="row-inline">
-                <button class="btn ghost" id="btnWarmThumbs">生成缩略图（后台）</button>
-                <span class="hint" id="thumbHint"></span>
-              </div>
-              <p class="hint">为大图生成"显示用缩略图"，滚动与切换显示类型更顺滑（存在缓存目录里，可随缓存一起清理；<b>不会改动库里的原图</b>）。生成过程<b>没有任何"待办状态"</b>：中途关掉软件，下次打开会自动继续补齐。</p>
+              <p class="hint">双击 .gameart 文件即可用本软件打开该库。</p>
+              <p class="hint">默认已自动关联；也可在此取消或重新关联。</p>
             </div>
           </section>
 

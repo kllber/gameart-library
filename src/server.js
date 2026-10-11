@@ -75,7 +75,7 @@ const PUBLIC_DIR = path.join(ROOT, 'public');
 const HOST = '127.0.0.1';
 const PORT = Number(process.env.PORT || 5178);
 /** 版本号单一来源：前端从 /api/status 读取，避免多处硬编码对不上 */
-const APP_VERSION = 'v1.2.1';
+const APP_VERSION = 'v1.3.0';
 
 const MIME = {
   '.html': 'text/html; charset=utf-8',
@@ -877,6 +877,15 @@ async function handleApi(req, res, pathname, query) {
       ownedCount: db.ownedCount(),
       dbFile: db.currentDbPath(),
       dbSize: db.dbSizeBytes(),
+      // 库文件是否还在原处（用户可能在外部重命名/移动过；用于界面提示，见 §6.10）
+      dbFileExists: (() => {
+        const p = db.currentDbPath();
+        try {
+          return !!p && fs.existsSync(p);
+        } catch (e) {
+          return false;
+        }
+      })(),
       runtime: { node: process.versions.node, electron: process.versions.electron || null },
     });
   }

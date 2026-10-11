@@ -548,9 +548,25 @@ pre.meta {
 .field input:focus, .field select:focus { border-color: rgba(76,201,255,0.6); }
 .field code { font-size: 12px; color: var(--accent); word-break: break-all; }
 
+/* 设置→库文件信息：当前库里"文件名"要醒目（大字号），路径作为次要信息放下面 */
+.lib-name {
+  font-size: 20px; font-weight: 700; line-height: 1.35; color: var(--text);
+  word-break: break-all;
+}
+body[data-theme="light"] .lib-name { color: var(--text); }
+
 .segmented { display: inline-flex; border: 1px solid var(--panel-border); border-radius: 10px; overflow: hidden; width: fit-content; }
 .segmented button { padding: 8px 20px; background: transparent; border: none; color: var(--text-dim); cursor: pointer; font-size: 13px; }
 .segmented button.active { background: linear-gradient(135deg, var(--accent), var(--accent-2)); color: #061019; font-weight: 700; }
+
+/* 设置→存储与清理：占用明细小表格（比一整段逗号句好读；见 §6.10） */
+.usage-table { width: 100%; border-collapse: collapse; font-size: 12.5px; }
+.usage-table th { text-align: left; font-weight: 500; font-size: 11.5px; color: var(--text-dim); padding: 6px 8px; border-bottom: 1px solid var(--panel-border); }
+.usage-table td { padding: 7px 8px; border-bottom: 1px solid rgba(255,255,255,0.05); }
+.usage-table th:nth-child(2), .usage-table th:nth-child(3),
+.usage-table td:nth-child(2), .usage-table td:nth-child(3) { text-align: right; width: 96px; }
+.usage-table tr.total td { font-weight: 700; border-bottom: none; border-top: 1px solid var(--panel-border); }
+body[data-theme="light"] .usage-table td { border-bottom-color: rgba(20,30,55,0.07); }
 
 .swatches { display: flex; gap: 12px; }
 .swatch {

@@ -111,18 +111,13 @@ const I18N_EN = {
   '当前库文件': 'Current library file',
   '库文件大小': 'Library size',
   '数据位置': 'Data location',
-  '本软件的数据与缓存都放在一个独立的数据目录里，不会散落到系统其它位置。': 'App data and caches are stored in one dedicated folder; nothing is scattered elsewhere.',
   '⇄ 切换 / 打开其他库文件': '⇄ Switch / open another library',
   '.gameart 文件关联': '.gameart file association',
   '关联到本软件': 'Associate with this app',
   '取消关联': 'Remove association',
-  '双击 .gameart 文件即可用本软件打开该库（默认已自动关联；也可在此取消或重新关联）。': 'Double-click a .gameart file to open it with this app (associated automatically by default; remove or re-add it here).',
-  '存储占用与清理': 'Storage & cleanup',
   '清理默认图缓存': 'Clear default-art cache',
   '清理备份': 'Clear backups',
   '清理临时文件': 'Clear temp files',
-  '缓存/临时文件都在上面的数据目录内，可用按钮释放空间；清理缓存/备份不影响 .gameart 库里的艺术作品（缩略图也会一起清掉，之后会自动重新生成）。':
-    'Cache/temp files live in the data folder above; use the buttons to free space. Clearing cache/backups does not affect artwork inside .gameart (thumbnails are cleared too and will be regenerated automatically).',
   '名称': 'Name',
   '版本': 'Version',
   '作者': 'Author',
@@ -324,21 +319,45 @@ const I18N_EN = {
   '修改失败': 'Update failed',
   '添加失败': 'Add failed',
   '保存失败': 'Save failed',
-  '库内艺术图占用：': 'Artwork inside the library: ',
-  '库内艺术图占用：{0}（{1}）': 'Artwork inside the library: {0} ({1})',
-  '（数据目录：{0}）': ' (data dir: {0})',
   '缩略图': 'Thumbnails',
+  '库文件信息': 'Library info',
+  '补全与生成': 'Fill & generate',
+  '存储与清理': 'Storage & cleanup',
+  '文件关联': 'File association',
+  '占用总览': 'Storage overview',
+  '库内艺术图占用': 'Artwork usage inside the library',
+  '清理': 'Cleanup',  '类型': 'Type',
+  '张数': 'Files',
+  '占用': 'Size',
+  '合计': 'Total',
+  '还没有加入任何艺术图。': 'No artwork added yet.',
+  '本软件的数据与缓存都放在这个目录里。': 'App data and caches live in this folder.',
+  '不会散落到系统其它位置。': 'They are not scattered elsewhere on your system.',
+  '为库里「还没有图」的游戏补上 Steam 默认图。': 'Fetches Steam default artwork for games that have none.',
+  '中途关掉软件也没关系：下次打开该库会自动继续。': 'You can quit anytime — it resumes next time you open this library.',
+  '为大图生成「显示用缩略图」，滚动与切换显示更顺滑。': 'Generates display thumbnails for large artwork, so browsing stays smooth.',
+  '只存在缓存目录（可随缓存清理），不会改动库里的原图。':
+    'Stored only in the cache folder (cleared together with the cache); your originals are never modified.',
+  '生成过程没有任何「待办状态」：中途关掉软件，下次打开会自动继续补齐。':
+    'There is no pending-job state: closing the app simply continues next time.',
+  '这些缓存/临时文件都在上面的数据目录内，可一键释放空间。': 'These cache/temp files live in the data folder above; clear them to free space.',
+  '这是你库里所有艺术图的总大小（含动图预览），不等于库文件大小。':
+    'Total size of all artwork in this library (including animated previews) — not the .gameart file size.',
+  '清理缓存 / 备份不影响 .gameart 里的艺术作品。': 'Clearing the cache/backups does not affect artwork inside .gameart.',
+  '缩略图会一起清掉，之后浏览时会自动重新生成。': 'Thumbnails are cleared too and regenerate automatically as you browse.',
+  '双击 .gameart 文件即可用本软件打开该库。': 'Double-click a .gameart file to open it with this app.',
+  '支持同时绑定多个账号：每个账号单独填一次（SteamID + 该账号的 Key）。绑定后「从 Steam 库添加」会把所有账号拥有的游戏合并列出；同步到 Steam 时也会同时写入本机所有账号的封面。':
+    'Multiple accounts are supported: add each one with its own SteamID + API key. "Add from Steam library" then merges the games owned by all accounts, and syncing writes the artwork into every local account at once.',
+  '默认已自动关联；也可在此取消或重新关联。': 'Associated automatically by default; remove or re-add it here.',
   '图片缩略图（浏览更流畅）': 'Image thumbnails (smoother browsing)',
-  '为大图生成显示用的缩略图（存在缓存目录里，可随缓存一起清理；<b>不会改动库里的原图</b>）。生成过程**没有任何待办状态**，中途关掉软件只是下次继续补齐。':
-    'Generates display-size thumbnails for large artwork (kept in the cache folder, cleared together with the cache; <b>your originals are never modified</b>). There is <b>no pending-job state</b> — closing the app mid-way simply continues next time.',
   '生成缩略图（后台）': 'Generate thumbnails (background)',
   '正在生成缩略图 {0}/{1}…': 'Generating thumbnails {0}/{1}…',
   '正在生成缩略图…': 'Generating thumbnails…',
   '已生成 {0} 张（下次浏览更快）': '{0} generated (faster next time)',
   '已生成 {0} 张缩略图（下次浏览更快）': '{0} thumbnails generated (faster next time)',
   '缩略图已在设置里关闭': 'Thumbnails are disabled in settings',
-  '{0} {1} 张 / {2}': '{0}: {1} files / {2}',
   '计算中…': 'Calculating…',
+  '（这个库文件已被重命名或移动，请重新打开该库）': '(This library file has been renamed or moved — please open the library again)',
   '正在定位 SteamGridDB 游戏…': 'Locating the SteamGridDB game…',
   '下载失败': 'Download failed',
   '加入失败': 'Failed to add',
@@ -350,8 +369,6 @@ const I18N_EN = {
   '创建桌面快捷方式': 'Create desktop shortcut',
   '默认图补全': 'Default art fill',
   '补全默认图（后台）': 'Fill default art (background)',
-  '为库里「还没有图」的游戏补上 Steam 默认图；中途关掉软件也没关系，下次打开该库会自动继续。':
-    'Fetches Steam default artwork for games that have none. You can quit the app anytime — it resumes automatically next time you open this library.',
   '已开始补全默认图（后台进行，可随时关闭软件）': 'Filling default artwork in the background — you can close the app anytime.',
   '已创建桌面快捷方式：': 'Desktop shortcut created: ',
   '创建失败': 'Failed to create',
@@ -3218,16 +3235,21 @@ async function saveUi(patch, opts) {
   if (state.detail && !$('detailModal').hidden) openDetail(state.detail.appid);
 }
 
+/** 旧 id 兼容：v1.3.0 把「库文件」拆成了 4 个子项（libinfo / libjobs / libstorage / libassoc） */
+const SETTINGS_TAB_ALIAS = { library: 'libinfo' };
+
 function switchSettingsTab(name) {
+  name = SETTINGS_TAB_ALIAS[name] || name;
   state.settingsTab = name;
   document.querySelectorAll('#settingsNav .snav').forEach((b) => b.classList.toggle('active', b.dataset.tab === name));
   document.querySelectorAll('.spanel').forEach((p) => (p.hidden = p.dataset.panel !== name));
-  // 切到子页时自动展开所属分组（"绑定与账号"）
-  const sub = document.querySelector('.snav-sub[data-group="accounts"]');
-  const grp = document.querySelector('.snav.group[data-group="accounts"]');
-  if (sub && grp && (name === 'sgdb' || name === 'steam')) {
+  // 切到子项时，自动展开它所属的分组（绑定与账号 / 库文件…）
+  const active = document.querySelector('#settingsNav .snav[data-tab="' + name + '"]');
+  const sub = active ? active.closest('.snav-sub') : null;
+  if (sub) {
     sub.hidden = false;
-    grp.classList.add('open');
+    const grp = document.querySelector('.snav.group[data-group="' + sub.dataset.group + '"]');
+    if (grp) grp.classList.add('open');
   }
 }
 
@@ -3242,34 +3264,79 @@ function fmtBytes(n) {
   return n.toFixed(i === 0 ? 0 : 1) + ' ' + u[i];
 }
 
+/** 渲染「库内艺术图占用」小表格（比一整段逗号句好读得多；见 §6.10） */
+function renderArtUsage(rows) {
+  const box = $('artUsageTable');
+  if (!box) return;
+  const list = Array.isArray(rows) ? rows : [];
+  if (!list.length) {
+    box.innerHTML = `<p class="hint">${esc(T('还没有加入任何艺术图。'))}</p>`;
+    return;
+  }
+  let totalN = 0;
+  let totalB = 0;
+  const seen = new Set();
+  const tr = [];
+  const push = (t, r) => {
+    const bytes = Number(r.bytes || 0) + Number(r.preview || 0);
+    totalN += Number(r.n || 0);
+    totalB += bytes;
+    tr.push(`<tr><td>${esc(T(TYPE_LABELS[t] || t))}</td><td>${Number(r.n || 0)}</td><td>${fmtBytes(bytes)}</td></tr>`);
+  };
+  for (const t of TYPE_ORDER) {
+    const r = list.find((x) => x.type === t);
+    if (r) {
+      push(t, r);
+      seen.add(t);
+    }
+  }
+  for (const r of list) if (!seen.has(r.type)) push(r.type, r);
+  box.innerHTML =
+    '<table class="usage-table">' +
+    `<thead><tr><th>${T('类型')}</th><th>${T('张数')}</th><th>${T('占用')}</th></tr></thead>` +
+    `<tbody>${tr.join('')}<tr class="total"><td>${T('合计')}</td><td>${totalN}</td><td>${fmtBytes(totalB)}</td></tr></tbody>` +
+    '</table>';
+}
+
 async function loadStorage() {
   try {
     const s = await api('/api/storage');
+    if ($('dataDirPath')) $('dataDirPath').textContent = s.dataDir || '—';
     const el = $('storageInfo');
     if (el)
       el.textContent =
-        T('默认图缓存') + ' ' + fmtBytes(s.cacheBytes) + ' · ' + T('缩略图') + ' ' + fmtBytes(s.thumbBytes) + ' · ' + T('备份') + ' ' + fmtBytes(s.backupBytes) + ' · ' + T('临时') + ' ' + fmtBytes(s.tmpBytes) + (s.dataDir ? TP('（数据目录：{0}）', s.dataDir) : '');
-    // 库内艺术图占用明细（回答"我的库为什么这么大"）
-    const u = $('artUsage');
-    if (u) {
-      const rows = Array.isArray(s.artStats) ? s.artStats : [];
-      if (!rows.length) {
-        u.textContent = '';
-      } else {
-        const order = ['portrait', 'grid', 'hero', 'logo', 'icon'];
-        let total = 0;
-        const parts = [];
-        for (const t of order) {
-          const r = rows.find((x) => x.type === t);
-          if (!r) continue;
-          const bytes = Number(r.bytes || 0) + Number(r.preview || 0);
-          total += bytes;
-          parts.push(TP('{0} {1} 张 / {2}', T(TYPE_LABELS[t] || t), r.n, fmtBytes(bytes)));
-        }
-        for (const r of rows) if (!order.includes(r.type)) total += Number(r.bytes || 0) + Number(r.preview || 0);
-        u.textContent = TP('库内艺术图占用：{0}（{1}）', fmtBytes(total), parts.join(' · '));
-      }
+        T('默认图缓存') + ' ' + fmtBytes(s.cacheBytes) + ' · ' + T('缩略图') + ' ' + fmtBytes(s.thumbBytes) + ' · ' + T('备份') + ' ' + fmtBytes(s.backupBytes) + ' · ' + T('临时') + ' ' + fmtBytes(s.tmpBytes);
+    renderArtUsage(s.artStats);
+  } catch (e) {
+    /* ignore */
+  }
+}
+
+/** 显示"当前库文件"：大字号**只显示文件名**，完整路径作为次要信息。
+ *  每次都从 `/api/status` 的当前库路径实时算 → **改名后重新打开（或切回窗口）就会显示新名字，不是写死的**。 */
+function setLibFileDisplay(fullPath, exists) {
+  const p = String(fullPath || '');
+  const name = p ? p.replace(/^.*[\\/]/, '') : '—';
+  if ($('dbName')) $('dbName').textContent = name;
+  if ($('dbFile')) $('dbFile').textContent = p || '—';
+  const w = $('dbFileWarn');
+  if (w) {
+    if (p && exists === false) {
+      w.hidden = false;
+      w.textContent = T('（这个库文件已被重命名或移动，请重新打开该库）');
+    } else {
+      w.hidden = true;
+      w.textContent = '';
     }
+  }
+}
+
+/** 只刷新"库文件信息"里的库路径/名字（窗口重新获得焦点时用：用户可能在资源管理器里改了文件名） */
+async function refreshLibInfo() {
+  try {
+    const s = await api('/api/status');
+    setLibFileDisplay(s.dbFile, s.dbFileExists);
+    if ($('dbSize')) $('dbSize').textContent = fmtBytes(s.dbSize);
   } catch (e) {
     /* ignore */
   }
@@ -3283,7 +3350,7 @@ async function openSettings(tab) {
   if ($('storageInfo')) $('storageInfo').textContent = T('计算中…');
   applyI18n();
   const s = await api('/api/status');
-  $('dbFile').textContent = s.dbFile;
+  setLibFileDisplay(s.dbFile, s.dbFileExists);
   if ($('aboutVersion')) $('aboutVersion').textContent = s.version || '—';
   if ($('aboutRuntime') && s.runtime) $('aboutRuntime').textContent = 'Node ' + s.runtime.node + (s.runtime.electron ? ' · Electron ' + s.runtime.electron : '');
   if ($('aboutAuthor')) {
@@ -3658,6 +3725,10 @@ function bind() {
     });
   }
   if ($('btnWarmThumbs')) $('btnWarmThumbs').addEventListener('click', () => warmThumbs(true).catch(() => {}));
+  // 窗口重新获得焦点时刷新"库文件信息"（用户可能刚在资源管理器里改了 .gameart 文件名；见 §6.10）
+  window.addEventListener('focus', () => {
+    if ($('settingsModal') && !$('settingsModal').hidden && state.settingsTab === 'libinfo') refreshLibInfo();
+  });
   // 记录"用户正在操作"（后台生成缩略图时会据此让路）
   ['wheel', 'pointerdown', 'keydown', 'touchstart', 'scroll', 'input'].forEach((ev0) =>
     window.addEventListener(ev0, markUserAct, { passive: true, capture: true })
