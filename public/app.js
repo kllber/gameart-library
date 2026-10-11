@@ -323,6 +323,8 @@ const I18N_EN = {
   '修改失败': 'Update failed',
   '添加失败': 'Add failed',
   '保存失败': 'Save failed',
+  '库内艺术图占用：': 'Artwork inside the library: ',
+  '{0} {1} 张 / {2}': '{0}: {1} files / {2}',
   '下载失败': 'Download failed',
   '加入失败': 'Failed to add',
   '刷新失败': 'Refresh failed',
@@ -362,6 +364,12 @@ const I18N_EN = {
   '已彻底删除': 'Deleted forever',
   '已移入回收站': 'Moved to recycle bin',
   '分组已保存': 'Groups saved',
+  '⊞ 更改分组（{0} 款）': '⊞ Change groups ({0})',
+  '更改分组 · 已选 {0} 款游戏': 'Change groups · {0} games selected',
+  '将为选中的游戏「加入」下面勾选的分类（它们原有的分类保持不变）':
+    'The selected games will be ADDED to the checked categories (their existing categories stay unchanged).',
+  '请先勾选要加入的分类': 'Please check at least one category first',
+  '已把 {0} 款游戏加入 {1} 个分类': 'Added {0} games to {1} categories',
   '已保存分类': 'Category saved',
   '已解绑该账号': 'Account unbound',
   '已全部解绑': 'All accounts unbound',
@@ -748,6 +756,54 @@ function coverCandidates(g) {
 function coverOf(g) {
   const c = coverCandidates(g);
   return c.length ? c[0] : null;
+}
+
+/* ---------------- 「显示」卡片类型（竖向封面 / 横向封面 / 大背景 / Logo / 图标） ---------------- */
+
+const SHOW_TYPES = ['portrait', 'grid', 'hero', 'logo', 'icon'];
+const THUMB_CLASS = { portrait: 'tall', grid: 'wide', hero: 'ultra', logo: 'tall', icon: 'square' };
+const SHOW_LABELS = { portrait: '竖向封面', grid: '横向封面', hero: '大背景', logo: 'Logo', icon: '图标' };
+
+/**
+ * 按「显示」类型给出封面候选（顺序 = 优先级；找不到就逐级回退）。
+ * 注意：`tall` 沿用旧语义（只有竖版为 true，其它 false）——`buildCoverImg/ensureFillFor` 靠它决定"虚化填充"。
+ */
+function coverForType(g, type) {
+  const out = [];
+  const addCustom = (t) => {
+    const row = pickArt(g, t);
+    if (!row) return;
+    out.push({
+      url: assetUrl(g.appid, row.file),
+      tall: t === 'portrait',
+      kind: 'custom',
+      animated: row.mime === 'image/webp',
+      preview: row.has_preview ? previewUrl(g.appid, row.file) : null,
+    });
+  };
+  const addDefault = (t) => {
+    if (isSteamAppid(g.appid)) out.push({ url: defaultUrl(g.appid, t), tall: t === 'portrait', kind: 'default' });
+  };
+  const CHAIN = {
+    portrait: [['portrait', 'c'], ['portrait', 'd'], ['grid', 'c'], ['hero', 'c'], ['grid', 'd'], ['logo', 'c']],
+    grid: [['grid', 'c'], ['grid', 'd'], ['hero', 'c'], ['hero', 'd'], ['portrait', 'c'], ['portrait', 'd']],
+    hero: [['hero', 'c'], ['hero', 'd'], ['grid', 'c'], ['grid', 'd'], ['portrait', 'c'], ['portrait', 'd']],
+    logo: [['logo', 'c'], ['logo', 'd'], ['portrait', 'c'], ['portrait', 'd']],
+    icon: [['icon', 'c'], ['portrait', 'c'], ['portrait', 'd']],
+  };
+  for (const [t, k] of CHAIN[type] || CHAIN.portrait) {
+    if (k === 'c') addCustom(t);
+    else addDefault(t);
+  }
+  return out;
+}
+
+function syncShowUi() {
+  const label = $('showDdLabel');
+  if (label) label.textContent = T(SHOW_LABELS[state.showType] || '竖向封面');
+  document.querySelectorAll('#showDdMenu .dd-item').forEach((b) => {
+    b.classList.toggle('active', b.dataset.value === state.showType);
+  });
 }
 
 function placeholderThumb(g) {
@@ -1262,11 +1318,12 @@ function render() {
   $('artCount').textContent = arts;
 
   renderCats();
+  syncShowUi();
   $('empty').hidden = state.games.length > 0;
 
   let order = 0;
   for (const g of list) {
-    const cands = coverCandidates(g);
+    const cands = coverForType(g, state.showType);
     const card = document.createElement('div');
     card.className = 'card';
     card.dataset.appid = String(g.appid);
@@ -1280,7 +1337,7 @@ function render() {
 
     // 统一竖版：若没有竖版可用，则用横版/大背景图做虚化填充
     const thumb = document.createElement('div');
-    thumb.className = 'thumb tall';
+    thumb.className = 'thumb ' + (THUMB_CLASS[state.showType] || 'tall');
     if (cands.length) {
       const first = cands[0];
       const coverOrder = order++;
@@ -1383,9 +1440,110 @@ function renderCats() {
     const b = document.createElement('button');
     b.className = 'chip cat-chip' + (String(state.catFilter) === String(c.id) ? ' active' : '');
     b.dataset.cat = String(c.id);
+    b.dataset.catId = String(c.id);
+    b.draggable = false;
     b.innerHTML = `<span class="cat-name">${esc(c.name)} (${c.count})</span><span class="cat-ops"><i class="cat-ren" title="编辑">✎</i><i class="cat-del" title="删除">🗑</i></span>`;
+    attachCatDrag(b);
     box.appendChild(b);
   }
+}
+
+/* ---------------- 分类拖拽排序（直接拖侧栏里的分类，不用开面板） ---------------- */
+
+let CAT_DRAG = null;
+
+function catChips() {
+  return Array.from($('catList').querySelectorAll('.chip.cat-chip'));
+}
+
+/** 指针落在第几个分类之前（按各 chip 的中线判断） */
+function catInsertIndex(clientY) {
+  const chips = catChips();
+  for (let i = 0; i < chips.length; i++) {
+    const r = chips[i].getBoundingClientRect();
+    if (clientY < r.top + r.height / 2) return i;
+  }
+  return chips.length;
+}
+
+function updateCatIndicator(clientY) {
+  const chips = catChips();
+  const idx = catInsertIndex(clientY);
+  chips.forEach((c, i) => {
+    c.classList.toggle('drop-before', i === idx);
+    c.classList.remove('drop-after');
+  });
+  if (idx >= chips.length && chips.length) chips[chips.length - 1].classList.add('drop-after');
+}
+
+function clearCatIndicator() {
+  catChips().forEach((c) => c.classList.remove('drop-before', 'drop-after', 'dragging'));
+}
+
+function attachCatDrag(el) {
+  el.addEventListener('pointerdown', (e) => {
+    if (e.button !== 0) return;
+    if (e.target.closest('.cat-ops')) return; // 点 ✎ / 🗑 不拖拽
+    CAT_DRAG = { el, id: String(el.dataset.catId), startY: e.clientY, active: false };
+    try {
+      el.setPointerCapture(e.pointerId);
+    } catch (err) {
+      /* ignore */
+    }
+  });
+  el.addEventListener('pointermove', (e) => {
+    if (!CAT_DRAG || CAT_DRAG.el !== el) return;
+    if (!CAT_DRAG.active) {
+      if (Math.abs(e.clientY - CAT_DRAG.startY) < 5) return; // 阈值：避免误触
+      CAT_DRAG.active = true;
+      el.classList.add('dragging');
+    }
+    updateCatIndicator(e.clientY);
+  });
+  const end = (e) => {
+    if (!CAT_DRAG || CAT_DRAG.el !== el) return;
+    const wasActive = CAT_DRAG.active;
+    const id = CAT_DRAG.id;
+    CAT_DRAG = null;
+    clearCatIndicator();
+    if (!wasActive) return;
+    // 拖拽结束后短时屏蔽 click，避免"顺手切换了分类筛选"
+    state.suppressClickUntil = Date.now() + 300;
+    const before = state.categories.map((c) => String(c.id));
+    const ids = before.slice();
+    const from = ids.indexOf(id);
+    if (from < 0) return;
+    // 目标位置：按"**排除被拖动项**后"的其它分类中线计算，避免上下移动时的差一错误
+    const others = catChips().filter((x) => String(x.dataset.catId) !== id);
+    let to = others.length;
+    for (let i = 0; i < others.length; i++) {
+      const r = others[i].getBoundingClientRect();
+      if (e.clientY < r.top + r.height / 2) {
+        to = i;
+        break;
+      }
+    }
+    ids.splice(from, 1);
+    ids.splice(Math.max(0, Math.min(ids.length, to)), 0, id);
+    if (ids.join(',') === before.join(',')) return;
+    // 乐观更新（立刻看到新顺序），随后以服务端返回为准
+    const map = new Map(state.categories.map((c) => [String(c.id), c]));
+    state.categories = ids.map((i) => map.get(i)).filter(Boolean);
+    renderCats();
+    post('/api/categories/set-order', { ids })
+      .then(async (r) => {
+        if (r && r.categories) {
+          state.categories = r.categories;
+          renderCats();
+        } else {
+          await loadCategories();
+          renderCats();
+        }
+      })
+      .catch(() => {});
+  };
+  el.addEventListener('pointerup', end);
+  el.addEventListener('pointercancel', end);
 }
 
 /* ---------------- 回收站 ---------------- */
@@ -1461,29 +1619,50 @@ async function purgeFromTrash(g) {
 }
 
 function openCardMenu(g, x, y) {
+  // Ctrl 多选后右键：操作对象 = 所有已选游戏（否则只操作这一款）
+  const sel = state.selectedCards || new Set();
+  const multi = sel.size > 1 && sel.has(String(g.appid));
+  state.menuTargets = multi ? Array.from(sel) : [String(g.appid)];
   state.cardMenuGame = g;
+  const gbtn = $('cardMenuGroups');
+  if (gbtn) gbtn.textContent = multi ? TP('⊞ 更改分组（{0} 款）', state.menuTargets.length) : '⊞ 更改分组';
+  // 「编辑 App ID / 删除」对单款才有意义 → 多选时隐藏
+  if ($('cardMenuAppid')) $('cardMenuAppid').hidden = multi;
+  if ($('cardMenuDelete')) $('cardMenuDelete').hidden = multi;
   const m = $('cardMenu');
   m.hidden = false;
   m.style.left = Math.max(8, Math.min(window.innerWidth - 190, x)) + 'px';
-  m.style.top = Math.max(8, Math.min(window.innerHeight - 96, y)) + 'px';
+  m.style.top = Math.max(8, Math.min(window.innerHeight - (multi ? 60 : 96), y)) + 'px';
 }
 
 function openGameGroups(g) {
   state.cardMenuGame = g;
-  $('gameGroupsTitle').textContent = T('更改分组') + ' · ' + displayName(g);
+  const targets = state.menuTargets && state.menuTargets.length ? state.menuTargets : [String(g.appid)];
+  const multi = targets.length > 1;
+  $('gameGroupsTitle').textContent = multi
+    ? TP('更改分组 · 已选 {0} 款游戏', targets.length)
+    : T('更改分组') + ' · ' + displayName(g);
+  const sub = $('gameGroupsSub');
+  if (sub) {
+    sub.textContent = multi
+      ? T('将为选中的游戏「加入」下面勾选的分类（它们原有的分类保持不变）')
+      : T('可多选（一个游戏可属于多个分组）');
+  }
   const box = $('gameGroupsList');
   box.innerHTML = '';
   if (!state.categories.length) {
     box.innerHTML = `<div class="muted" style="padding:12px">${T('还没有分组，请先在左侧「新建分类」。')}</div>`;
   }
   for (const c of state.categories) {
-    const on = (g.categories || []).includes(c.id);
+    // 多选模式下不预勾选（各游戏原有分类不同）——语义是"加入勾选的分类"
+    const on = !multi && (g.categories || []).includes(c.id);
     const row = document.createElement('label');
     row.className = 'pick-row';
     row.innerHTML = `<input type="checkbox" ${on ? 'checked' : ''} data-cid="${c.id}" /><span class="pick-name">${esc(c.name)}</span>`;
     box.appendChild(row);
   }
   $('gameGroupsModal').hidden = false;
+  applyI18n();
 }
 
 async function editAppId(g) {
@@ -2848,6 +3027,9 @@ function applyUi(ui) {
   document.body.dataset.theme = ui.theme || 'dark';
   document.body.dataset.accent = ui.accent || 'cyan';
   document.body.dataset.grid = ui.gridSize || 'medium';
+  // 「显示」卡片类型（竖向封面/横向封面/大背景/Logo/图标）——v1.1.1 新增
+  state.showType = SHOW_TYPES.includes(ui.showType) ? ui.showType : 'portrait';
+  document.body.dataset.show = state.showType;
   state.ui = ui;
   // 语言是全局偏好（localStorage）；主题/强调色/卡片大小按库。
   let lsLang = null;
@@ -2940,6 +3122,27 @@ async function loadStorage() {
     if (el)
       el.textContent =
         T('默认图缓存') + ' ' + fmtBytes(s.cacheBytes) + ' · ' + T('备份') + ' ' + fmtBytes(s.backupBytes) + ' · ' + T('临时') + ' ' + fmtBytes(s.tmpBytes) + (s.dataDir ? T('（数据目录：') + s.dataDir + '）' : '');
+    // 库内艺术图占用明细（回答"我的库为什么这么大"）
+    const u = $('artUsage');
+    if (u) {
+      const rows = Array.isArray(s.artStats) ? s.artStats : [];
+      if (!rows.length) {
+        u.textContent = '';
+      } else {
+        const order = ['portrait', 'grid', 'hero', 'logo', 'icon'];
+        let total = 0;
+        const parts = [];
+        for (const t of order) {
+          const r = rows.find((x) => x.type === t);
+          if (!r) continue;
+          const bytes = Number(r.bytes || 0) + Number(r.preview || 0);
+          total += bytes;
+          parts.push(TP('{0} {1} 张 / {2}', T(TYPE_LABELS[t] || t), r.n, fmtBytes(bytes)));
+        }
+        for (const r of rows) if (!order.includes(r.type)) total += Number(r.bytes || 0) + Number(r.preview || 0);
+        u.textContent = T('库内艺术图占用：') + fmtBytes(total) + '　（' + parts.join(' · ') + '）';
+      }
+    }
   } catch (e) {
     /* ignore */
   }
@@ -3403,8 +3606,7 @@ function bind() {
   document.querySelectorAll('#sortDdMenu .dd-item').forEach((b) =>
     b.addEventListener('click', () => {
       const v = b.dataset.value;
-      $('sortDdMenu').hidden = true;
-      if (v === 'custom' && isSearchActive()) {
+      $('sortDdMenu').hidden = true;      if (v === 'custom' && isSearchActive()) {
         toast(T('搜索状态下不能使用自定义排序，请先清空搜索。'), true);
         return;
       }
@@ -3419,7 +3621,26 @@ function bind() {
   document.addEventListener('click', (e) => {
     const dd = $('sortDd');
     if (dd && !dd.contains(e.target)) $('sortDdMenu').hidden = true;
+    const sd = $('showDd');
+    if (sd && !sd.contains(e.target)) $('showDdMenu').hidden = true;
   });
+  // 「显示」下拉：切换卡片展示的艺术类型（竖向封面 / 横向封面 / 大背景 / Logo / 图标）
+  $('showDdBtn').addEventListener('click', (e) => {
+    e.stopPropagation();
+    const m = $('showDdMenu');
+    m.hidden = !m.hidden;
+  });
+  document.querySelectorAll('#showDdMenu .dd-item').forEach((b) =>
+    b.addEventListener('click', () => {
+      const v = b.dataset.value;
+      $('showDdMenu').hidden = true;
+      if (v === state.showType) return;
+      state.showType = v;
+      document.body.dataset.show = v;
+      syncShowUi();
+      saveUi({ showType: v });
+    })
+  );
   $('grid').addEventListener('click', (e) => {
     if (e.target === $('grid') && state.selectedCards.size) {
       state.selectedCards.clear();
@@ -3427,6 +3648,7 @@ function bind() {
     }
   });
   $('catList').addEventListener('click', async (e) => {
+    if (Date.now() < (state.suppressClickUntil || 0)) return; // 刚拖拽排序完 → 不要顺手切换筛选
     const del = e.target.closest('.cat-del');
     const ren = e.target.closest('.cat-ren');
     if (del) {
@@ -3492,8 +3714,24 @@ function bind() {
     const g = state.cardMenuGame;
     if (!g) return;
     const ids = Array.from(document.querySelectorAll('#gameGroupsList input:checked')).map((cb) => Number(cb.dataset.cid));
+    const targets = state.menuTargets && state.menuTargets.length ? state.menuTargets : [String(g.appid)];
+    if (targets.length > 1) {
+      // 多选：把选中的游戏**加入**勾选的分类（只加不删，各游戏原有分类不变）
+      if (!ids.length) return toast(T('请先勾选要加入的分类'), true);
+      const r = await post('/api/library/add-categories', { appids: targets, categories: ids });
+      if (!r.ok) return toast(r.error || T('保存失败'), true);
+      state.selectedCards.clear();
+      setCardSelection();
+      $('gameGroupsModal').hidden = true;
+      state.menuTargets = null;
+      await loadCategories();
+      await loadLibrary();
+      toast(TP('已把 {0} 款游戏加入 {1} 个分类', targets.length, ids.length));
+      return;
+    }
     await post('/api/library/set-categories', { appid: g.appid, ids });
     $('gameGroupsModal').hidden = true;
+    state.menuTargets = null;
     await loadLibrary();
     await loadCategories();
     toast(T('分组已保存'));

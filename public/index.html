@@ -102,6 +102,19 @@
           </div>
           <span class="sort-hint" id="sortHint" hidden>按住左键拖动封面排序</span>
         </div>
+        <div class="sort-wrap">
+          <span class="sort-label">显示</span>
+          <div class="dropdown" id="showDd">
+            <button class="dd-btn" id="showDdBtn" type="button"><span id="showDdLabel">竖向封面</span><span class="caret">▾</span></button>
+            <div class="dd-menu" id="showDdMenu" hidden>
+              <button class="dd-item" type="button" data-value="portrait">竖向封面</button>
+              <button class="dd-item" type="button" data-value="grid">横向封面</button>
+              <button class="dd-item" type="button" data-value="hero">大背景</button>
+              <button class="dd-item" type="button" data-value="logo">Logo</button>
+              <button class="dd-item" type="button" data-value="icon">图标</button>
+            </div>
+          </div>
+        </div>
       </div>
       <div id="grid" class="game-grid"></div>
       <div id="empty" class="empty" hidden>
@@ -265,13 +278,14 @@
           <section class="spanel" data-panel="steam" hidden>
             <h3>Steam 账号（Web API）</h3>
             <p class="hint" style="margin:-8px 0 16px">用途：读取你拥有的游戏（用于「从 Steam 库添加」），并读取本机 Steam 数据以写入自定义封面。需要 Steam Web API Key，且账号「游戏详情」设为公开。</p>
+            <p class="hint" style="margin:-8px 0 16px"><b>支持同时绑定多个账号</b>：每个账号单独填一次（SteamID + 该账号的 Key）。绑定后「从 Steam 库添加」会把所有账号拥有的游戏合并列出；同步到 Steam 时也会<b>同时写入本机所有账号</b>的封面。</p>
             <h3 style="margin-top:8px"><span class="h3-label">已绑定</span> <span class="muted" id="steamAcctCount"></span></h3>
             <div id="steamAccounts" class="acct-list"></div>
             <div class="field">
               <label>添加账号（本机账号可下拉选择）</label>
               <input id="steamId" list="localUserList" placeholder="SteamID64 或 主页链接" />
               <datalist id="localUserList"></datalist>
-              <input id="steamKey" type="password" placeholder="Steam Web API Key（一个 Key 可查多个公开账号）" />
+              <input id="steamKey" type="password" placeholder="Steam Web API Key（与你的账号绑定；也可用它查询其它「公开」账号）" />
               <div class="row-inline">
                 <button class="btn primary" id="btnBindSteam">＋ 绑定并同步</button>
                 <button class="btn danger" id="btnUnbindSteam">全部解绑</button>
@@ -317,6 +331,7 @@
                 <button class="btn ghost" id="btnCleanTmp">清理临时文件</button>
               </div>
               <p class="hint">缓存/临时文件都在上面的数据目录内，可用按钮释放空间；清理缓存/备份不影响 .gameart 库里的艺术作品。</p>
+              <p class="hint" id="artUsage"></p>
             </div>
           </section>
 
@@ -440,7 +455,7 @@
   <div id="gameGroupsModal" class="modal" hidden>
     <div class="modal-card narrow">
       <button class="modal-close" data-close="gameGroupsModal">✕</button>
-      <div class="modal-head"><h2 id="gameGroupsTitle">更改分组</h2><p>可多选（一个游戏可属于多个分组）</p></div>
+      <div class="modal-head"><h2 id="gameGroupsTitle">更改分组</h2><p id="gameGroupsSub">可多选（一个游戏可属于多个分组）</p></div>
       <div id="gameGroupsList" class="pick-list"></div>
       <div class="detail-actions" style="margin-top:16px">
         <button class="btn primary" id="btnGameGroupsSave">保存</button>

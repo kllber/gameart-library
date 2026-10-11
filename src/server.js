@@ -74,7 +74,7 @@ const PUBLIC_DIR = path.join(ROOT, 'public');
 const HOST = '127.0.0.1';
 const PORT = Number(process.env.PORT || 5178);
 /** 版本号单一来源：前端从 /api/status 读取，避免多处硬编码对不上 */
-const APP_VERSION = 'v1.1.0';
+const APP_VERSION = 'v1.2.0';
 
 const MIME = {
   '.html': 'text/html; charset=utf-8',
@@ -825,12 +825,12 @@ async function handleApi(req, res, pathname, query) {
 
   // 存储占用 / 清理
   if (pathname === '/api/storage' && req.method === 'GET') {
-    return sendJson(res, 200, storageInfo());
+    return sendJson(res, 200, { ...storageInfo(), artStats: db.artTypeStats() });
   }
   if (pathname === '/api/storage/clean' && req.method === 'POST') {
     const body = await readBody(req);
     const removed = cleanStorage(String(body.target || ''));
-    return sendJson(res, 200, { ok: true, removed, ...storageInfo() });
+    return sendJson(res, 200, { ok: true, removed, ...storageInfo(), artStats: db.artTypeStats() });
   }
 
   if (pathname === '/api/library' && req.method === 'GET') {
@@ -870,6 +870,12 @@ async function handleApi(req, res, pathname, query) {
     return sendJson(res, 200, { ok: true, id });
   }
 
+  if (pathname === '/api/categories/set-order' && req.method === 'POST') {
+    const body = await readBody(req);
+    db.setCategoryOrder(Array.isArray(body.ids) ? body.ids.map(String) : []);
+    return sendJson(res, 200, { ok: true, categories: db.listCategories() });
+  }
+
   if (pathname === '/api/categories/rename' && req.method === 'POST') {
     const body = await readBody(req);
     if (!body.id || !body.name) return sendJson(res, 400, { error: '参数不足' });
@@ -888,6 +894,17 @@ async function handleApi(req, res, pathname, query) {
     if (!body.id || !Array.isArray(body.appids)) return sendJson(res, 400, { error: '参数不足' });
     db.setCategoryGames(body.id, body.appids);
     return sendJson(res, 200, { ok: true });
+  }
+
+  // 批量把若干游戏**加入**若干分类（只加不删；用于"Ctrl 多选 → 右键 → 更改分组"）
+  if (pathname === '/api/library/add-categories' && req.method === 'POST') {
+    const body = await readBody(req);
+    const appids = Array.isArray(body.appids) ? body.appids.map(String) : [];
+    const cats = Array.isArray(body.categories) ? body.categories : [];
+    if (!appids.length) return sendJson(res, 400, { error: '没有选择游戏' });
+    if (!cats.length) return sendJson(res, 400, { error: '没有选择分类' });
+    db.addGameCategories(appids, cats);
+    return sendJson(res, 200, { ok: true, games: appids.length, categories: cats.length });
   }
 
   if (pathname === '/api/library/set-categories' && req.method === 'POST') {

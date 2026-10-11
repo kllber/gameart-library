@@ -558,6 +558,34 @@ function assetPath(appid, file) {
 
 /* ---------------- 分类（文件夹） ---------------- */
 
+/** 设置分类顺序（按传入的 id 顺序写 categories.sort） */
+function setCategoryOrder(ids) {
+  const d = getDb();
+  const stmt = d.prepare('UPDATE categories SET sort = ? WHERE id = ?');
+  (ids || []).forEach((id, i) => stmt.run(i, Number(id)));
+}
+
+/** 批量把若干游戏**加入**若干分类（只加不删；用于"多选右键 → 更改分组"） */
+function addGameCategories(appids, categoryIds) {
+  const d = getDb();
+  const stmt = d.prepare('INSERT OR IGNORE INTO game_categories (category_id, appid) VALUES (?, ?)');
+  let n = 0;
+  for (const a of appids || []) {
+    for (const c of categoryIds || []) {
+      stmt.run(Number(c), String(a));
+      n++;
+    }
+  }
+  return n;
+}
+
+/** 艺术图占用明细（按类型）——用于 设置→库文件 说明"库为什么这么大" */
+function artTypeStats() {
+  return getDb()
+    .prepare('SELECT type, COUNT(*) AS n, SUM(LENGTH(data)) AS bytes, SUM(COALESCE(LENGTH(preview),0)) AS preview FROM art GROUP BY type')
+    .all();
+}
+
 function listCategories() {
   const rows = getDb().prepare('SELECT * FROM categories ORDER BY sort ASC, id ASC').all();
   for (const c of rows) {
@@ -666,4 +694,7 @@ module.exports = {
   setCategoryGames,
   setGameCategories,
   listCategoryMemberOrder,
+  setCategoryOrder,
+  addGameCategories,
+  artTypeStats,
 };

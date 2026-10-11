@@ -7,7 +7,7 @@
 **统一管理并一键同步你喜爱的游戏自定义艺术作品到 Steam**
 
 <p>
-  <img alt="version" src="https://img.shields.io/badge/version-1.1.0-blue">
+  <img alt="version" src="https://img.shields.io/badge/version-1.2.0-blue">
   <img alt="license" src="https://img.shields.io/badge/license-Apache--2.0-green">
   <img alt="platform" src="https://img.shields.io/badge/platform-Windows%20%7C%20Linux-0078D6">
   <img alt="SteamOS" src="https://img.shields.io/badge/SteamOS-ready-1A9FFF?logo=steam&logoColor=white">
@@ -21,7 +21,7 @@
 
 <p>
   <a href="https://github.com/kllber/gameart-library/releases/latest">
-    <img src="https://img.shields.io/badge/DOWNLOAD-GameArt%20Library%20v1.1.0-7c5cff?style=for-the-badge&logo=github" alt="Download" />
+    <img src="https://img.shields.io/badge/DOWNLOAD-GameArt%20Library%20v1.2.0-7c5cff?style=for-the-badge&logo=github" alt="Download" />
   </a>
 </p>
 
@@ -78,9 +78,12 @@
 
 ![游戏详情](docs/zh/detail.jpg)
 
-### 🎨 排序与自定义拖拽
+### 🎨 排序 · 「显示」类型 · 拖拽
 
-「自定义」模式下可**按住左键拖拽**封面排序（类似手机相册）：可拖到空隙插入、拖拽中可滚轮翻页、`Ctrl` 点击多选后可整组拖动；**每个分类各有独立的排序**，互不干扰；搜索时会自动禁用拖拽以免顺序错乱。
+- **排序**（顶栏「排序」）：**添加时间 / 名称 / 自定义**。选「自定义」后可**按住左键拖拽封面**排序（类似手机相册）：可拖到空隙插入、拖拽中可滚轮翻页、`Ctrl` 点击多选后可整组拖动；**每个分类各有独立的排序**；搜索时会自动禁用拖拽以免顺序错乱。
+- **显示**（顶栏「显示」）：选择卡片展示哪种艺术作品 —— **竖向封面 / 横向封面 / 大背景 / Logo / 图标**；卡片形状与列数会跟着自动调整。
+- **分类排序**：侧栏里的分类**直接拖住上下拖**即可调整顺序（不用打开任何面板）。
+- **批量分组**：`Ctrl` 点击多选几款游戏后**右键 → 更改分组**，可一次把它们**加入**同一个分类。
 
 ![排序与拖拽](docs/zh/sort.jpg)
 

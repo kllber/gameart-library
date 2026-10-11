@@ -7,7 +7,7 @@
 **Collect, back up and one-click apply your custom Steam artwork**
 
 <p>
-  <img alt="version" src="https://img.shields.io/badge/version-1.1.0-blue">
+  <img alt="version" src="https://img.shields.io/badge/version-1.2.0-blue">
   <img alt="license" src="https://img.shields.io/badge/license-Apache--2.0-green">
   <img alt="platform" src="https://img.shields.io/badge/platform-Windows%20%7C%20Linux-0078D6">
   <img alt="SteamOS" src="https://img.shields.io/badge/SteamOS-ready-1A9FFF?logo=steam&logoColor=white">
@@ -21,7 +21,7 @@
 
 <p>
   <a href="https://github.com/kllber/gameart-library/releases/latest">
-    <img src="https://img.shields.io/badge/DOWNLOAD-GameArt%20Library%20v1.1.0-7c5cff?style=for-the-badge&logo=github" alt="Download" />
+    <img src="https://img.shields.io/badge/DOWNLOAD-GameArt%20Library%20v1.2.0-7c5cff?style=for-the-badge&logo=github" alt="Download" />
   </a>
 </p>
 
@@ -78,11 +78,14 @@ Keep several images per type: click to set the “current” one, ✕ to delete,
 
 ![Game detail](docs/en/detail.jpg)
 
-### 🎨 Sorting & custom drag-and-drop
+### 🎨 Sort · “Show” type · Drag
 
-In “Custom” mode, **hold the left mouse button and drag covers** to reorder (like the Photos app): drop into gaps, scroll with the wheel while dragging, `Ctrl`-click to multi-select and move a group. **Each category keeps its own order**, and dragging is disabled while searching.
+- **Sort** (top bar): **date added / name / custom**. In “Custom”, **hold the left mouse button and drag covers** to reorder (like a photo album): drop into gaps, scroll with the wheel while dragging, `Ctrl`-click to multi-select and move a group; **each category keeps its own order**; dragging is disabled while searching.
+- **Show** (top bar): choose which artwork to display on the cards — **Portrait / Grid / Hero / Logo / Icon**; the card shape and column count adapt automatically.
+- **Category order**: just **drag the categories in the sidebar** up/down to reorder them (no extra panel).
+- **Batch grouping**: `Ctrl`-click several games, then **right-click → Change groups** to add them **all** to a category at once.
 
-![Sorting & drag](docs/en/sort.jpg)
+![Sort & drag](docs/en/sort.jpg)
 
 ### ↔️ One-click sync to Steam
 

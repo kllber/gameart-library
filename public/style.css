@@ -336,6 +336,8 @@ body.dragging-active .card { cursor: grabbing; }
 }
 .thumb.tall { aspect-ratio: 2 / 3; }
 .thumb.wide { aspect-ratio: 16 / 9; }
+.thumb.ultra { aspect-ratio: 1920 / 620; }
+.thumb.square { aspect-ratio: 1 / 1; }
 .thumb img, .thumb video { width: 100%; height: 100%; object-fit: cover; display: block; background: #05070c; }
 
 /* 无竖版时：横图做虚化填充，保持竖版外观 */
@@ -519,6 +521,11 @@ pre.meta {
 /* 设置左栏底部：切换库文件（放到外面，一眼就能看到） */
 .snav-spacer { flex: 1 1 auto; min-height: 14px; }
 .snav-action { font-size: 12.5px; padding: 9px 10px; }
+/* 分类拖拽排序：拖动中的手感 + 插入位置指示线 */
+.chip.cat-chip { cursor: grab; }
+.chip.cat-chip.dragging { opacity: 0.55; cursor: grabbing; }
+.chip.cat-chip.drop-before { box-shadow: inset 0 3px 0 0 var(--accent); }
+.chip.cat-chip.drop-after { box-shadow: inset 0 -3px 0 0 var(--accent); }
 .settings-content { padding: 24px 28px; max-height: 78vh; overflow-y: auto; }
 .spanel h3 { margin: 0 0 16px; font-size: 15px; }
 .field { margin-bottom: 18px; display: flex; flex-direction: column; gap: 8px; }
@@ -555,6 +562,11 @@ body[data-theme="light"][data-accent="orange"] { --accent: #e0a35c; --accent-2: 
 
 body[data-grid="small"] { --card-min: 150px; }
 body[data-grid="large"] { --card-min: 250px; }
+/* 「显示」不同类型 → 卡片宽度不同（放在 data-grid 之后，才能覆盖卡片大小设置） */
+body[data-show="grid"] { --card-min: 320px; }
+body[data-show="hero"] { --card-min: 430px; }
+body[data-show="icon"] { --card-min: 150px; }
+body[data-show="logo"] { --card-min: 200px; }
 
 body[data-theme="light"] {
   --bg: #eef1f7;
