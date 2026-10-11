@@ -96,6 +96,17 @@ body { overflow-x: hidden; }
 .stats .stat { display: flex; justify-content: space-between; align-items: baseline; font-size: 12.5px; color: var(--text-dim); gap: 8px; }
 .stats .stat b { color: var(--text); font-size: 14px; }
 .stats .stat.path b { font-weight: 400; font-size: 11.5px; max-width: 150px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.stats .stat-right { display: inline-flex; align-items: center; gap: 6px; }
+/* 状态行右侧的"快速同步"小圆钮（点击即同步，不用打开设置） */
+.stat-refresh {
+  width: 22px; height: 22px; padding: 0; border-radius: 50%;
+  display: inline-flex; align-items: center; justify-content: center;
+  border: 1px solid var(--panel-border); background: transparent;
+  color: var(--accent); font-size: 12px; line-height: 1; cursor: pointer; flex: 0 0 auto;
+}
+.stat-refresh:hover { border-color: var(--accent); background: rgba(128, 128, 128, 0.16); }
+.stat-refresh.spin { animation: gal-spin 0.9s linear infinite; }
+@keyframes gal-spin { from { transform: rotate(0deg); } to { transform: rotate(360deg); } }
 
 .side-foot { margin-top: 0; }
 .side-panel.anchored { margin-top: auto; }
@@ -505,6 +516,9 @@ pre.meta {
 .snav-sub { display: flex; flex-direction: column; gap: 2px; padding: 0 0 0 12px; }
 .snav.sub { font-size: 12.5px; padding: 8px 12px; }
 .snav.sub.active { font-weight: 700; }
+/* 设置左栏底部：切换库文件（放到外面，一眼就能看到） */
+.snav-spacer { flex: 1 1 auto; min-height: 14px; }
+.snav-action { font-size: 12.5px; padding: 9px 10px; }
 .settings-content { padding: 24px 28px; max-height: 78vh; overflow-y: auto; }
 .spanel h3 { margin: 0 0 16px; font-size: 15px; }
 .field { margin-bottom: 18px; display: flex; flex-direction: column; gap: 8px; }

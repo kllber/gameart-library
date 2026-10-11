@@ -7,7 +7,7 @@
 **Collect, back up and one-click apply your custom Steam artwork**
 
 <p>
-  <img alt="version" src="https://img.shields.io/badge/version-1.0.1-blue">
+  <img alt="version" src="https://img.shields.io/badge/version-1.1.0-blue">
   <img alt="license" src="https://img.shields.io/badge/license-Apache--2.0-green">
   <img alt="platform" src="https://img.shields.io/badge/platform-Windows%20%7C%20Linux-0078D6">
   <img alt="SteamOS" src="https://img.shields.io/badge/SteamOS-ready-1A9FFF?logo=steam&logoColor=white">
@@ -21,7 +21,7 @@
 
 <p>
   <a href="https://github.com/kllber/gameart-library/releases/latest">
-    <img src="https://img.shields.io/badge/DOWNLOAD-GameArt%20Library%20v1.0.1-7c5cff?style=for-the-badge&logo=github" alt="Download" />
+    <img src="https://img.shields.io/badge/DOWNLOAD-GameArt%20Library%20v1.1.0-7c5cff?style=for-the-badge&logo=github" alt="Download" />
   </a>
 </p>
 
@@ -140,9 +140,9 @@ Inside the extracted folder:
 > The **first launch** asks whether to create a **desktop shortcut**; after that the app also appears in the **application menu** (right-click → pin to taskbar).
 > If anything still shows a default icon, just **log out and back in** once.
 
-| ✅ Desktop Mode | ✅ Both Steam builds | ✅ Data location |
+| ✅ Desktop Mode | ✅ Both Steam builds | ✅ **Green / portable** |
 |:--|:--|:--|
-| Runs in Desktop Mode | Native **and** Flatpak Steam supported | `~/.local/share/gameart-library` (cache: `~/.cache/gameart-library`) |
+| Runs in Desktop Mode | Native **and** Flatpak Steam supported | **Data & caches live inside this folder** (`data/`, `tmp/`) — **move the whole folder anywhere**, the app follows |
 
 > [!NOTE]
 > - The **`.gameart` file association is automatic** (set up on first launch): double-click a library file to open it; it gets a **dedicated icon** too.
@@ -186,8 +186,10 @@ dev.cmd node tools\build-dist.js   :: build the portable distribution (分发版
 | Location | Contents |
 |---|---|
 | your `*.gameart` | **artwork + games + categories + order + settings** (single file, images embedded; **interoperable** between Windows and Linux) |
-| `data\` ／ `~/.local/share/gameart-library` | recent files, default-art cache, pre-sync backups, Electron cache |
-| `tmp\` ／ `~/.cache/gameart-library` | temp files for sync/download (auto-cleaned) |
+| `data\` ／ `<the 游戏艺术库 folder>/data` | recent files, default-art cache, pre-sync backups, Electron cache |
+| `tmp\` ／ `<the 游戏艺术库 folder>/tmp` | temp files for sync/download (auto-cleaned) |
+
+> **Linux is portable too**: since v1.1.0, data & caches live **inside the app folder** — move the folder and everything follows. Older Linux builds used `~/.local/share/gameart-library`; the **first run migrates it automatically** (if the move fails, the old data simply stays put).
 
 ## ❓ FAQ
 

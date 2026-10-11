@@ -7,7 +7,7 @@
 **统一管理并一键同步你喜爱的游戏自定义艺术作品到 Steam**
 
 <p>
-  <img alt="version" src="https://img.shields.io/badge/version-1.0.1-blue">
+  <img alt="version" src="https://img.shields.io/badge/version-1.1.0-blue">
   <img alt="license" src="https://img.shields.io/badge/license-Apache--2.0-green">
   <img alt="platform" src="https://img.shields.io/badge/platform-Windows%20%7C%20Linux-0078D6">
   <img alt="SteamOS" src="https://img.shields.io/badge/SteamOS-ready-1A9FFF?logo=steam&logoColor=white">
@@ -21,7 +21,7 @@
 
 <p>
   <a href="https://github.com/kllber/gameart-library/releases/latest">
-    <img src="https://img.shields.io/badge/DOWNLOAD-GameArt%20Library%20v1.0.1-7c5cff?style=for-the-badge&logo=github" alt="Download" />
+    <img src="https://img.shields.io/badge/DOWNLOAD-GameArt%20Library%20v1.1.0-7c5cff?style=for-the-badge&logo=github" alt="Download" />
   </a>
 </p>
 
@@ -140,9 +140,9 @@
 > **第一次运行**后会问你要不要在**桌面创建快捷方式**；之后**开始菜单**里也会出现「游戏艺术库」（右键可固定到任务栏）。
 > 若哪里还显示"默认图标"，**注销重登**一次即可。
 
-| ✅ 桌面模式 | ✅ 两种 Steam | ✅ 数据目录 |
+| ✅ 桌面模式 | ✅ 两种 Steam | ✅ **绿色便携** |
 |:--|:--|:--|
-| 在 Desktop Mode 下运行 | 原生版与 Flatpak 版**都支持** | `~/.local/share/gameart-library`（缓存 `~/.cache/gameart-library`） |
+| 在 Desktop Mode 下运行 | 原生版与 Flatpak 版**都支持** | **数据/缓存都在这个文件夹里**（`data/`、`tmp/`）—— **整个文件夹可以随意移动**，软件会跟着走 |
 
 > [!NOTE]
 > - **`.gameart` 文件关联默认自动完成**（首次启动即写好）：双击库文件即可打开，`.gameart` 也有**专属图标**。
@@ -186,8 +186,10 @@ dev.cmd node tools\build-dist.js   :: 一键生成「免安装便携分发版」
 | 位置 | 内容 |
 |---|---|
 | 你的 `*.gameart` | **艺术图 + 游戏 + 分类 + 排序 + 设置**（单文件，图片内嵌；Windows 与 Linux **互通**） |
-| `data\` ／ `~/.local/share/gameart-library` | 最近打开、默认图缓存、同步前备份、Electron 缓存 |
-| `tmp\` ／ `~/.cache/gameart-library` | 同步/下载的临时文件（自动清理） |
+| `data\` ／ `<游戏艺术库文件夹>/data` | 最近打开、默认图缓存、同步前备份、Electron 缓存 |
+| `tmp\` ／ `<游戏艺术库文件夹>/tmp` | 同步/下载的临时文件（自动清理） |
+
+> **Linux 绿色便携**：v1.1.0 起，数据/缓存也在**程序所在文件夹内**（移动整个文件夹即可带走）；Linux 旧版放在 `~/.local/share/gameart-library`，**首次运行会自动搬过去**（搬不动就留在原地，不影响使用）。
 
 ## ❓ 常见问题
 

@@ -49,7 +49,7 @@
 
         <div class="side-panel">
           <div class="side-title">同步到 Steam</div>
-          <button class="btn block" id="btnApplyAll">⇩ 同步到 Steam 库</button>
+          <button class="btn primary block" id="btnApplyAll">⇩ 同步到 Steam 库</button>
         </div>
 
         <div class="side-panel">
@@ -77,8 +77,8 @@
           <div class="side-title">状态</div>
           <div class="stat"><span>库中游戏</span><b id="libCount">0</b></div>
           <div class="stat"><span>艺术文件</span><b id="artCount">0</b></div>
-          <div class="stat"><span>默认图同步</span><b id="syncStatus">—</b></div>
-          <div class="stat"><span>游戏名同步</span><b id="nameStatus">—</b></div>
+          <div class="stat"><span>默认图同步</span><span class="stat-right"><b id="syncStatus">—</b><button class="stat-refresh" id="btnQuickFill" title="立即补全默认图" aria-label="立即补全默认图">⟳</button></span></div>
+          <div class="stat"><span>中文名同步</span><span class="stat-right"><b id="nameStatus">—</b><button class="stat-refresh" id="btnQuickNames" title="立即拉取中文名" aria-label="立即拉取中文名">⟳</button></span></div>
         </div>
       </div>
     </aside>
@@ -175,6 +175,8 @@
           </div>
           <button class="snav" data-tab="library">库文件</button>
           <button class="snav" data-tab="about">关于</button>
+          <div class="snav-spacer"></div>
+          <button class="btn ghost block snav-action" id="btnSwitchLib">⇄ 切换 / 打开其他库文件</button>
         </nav>
         <div class="settings-content">
           <section class="spanel" data-panel="general">
@@ -288,8 +290,7 @@
           <section class="spanel" data-panel="library" hidden>
             <h3>库文件</h3>
             <div class="field"><label>当前库文件</label><code id="dbFile">—</code></div>
-            <div class="field"><label>库文件大小</label><div id="dbSize">—</div></div>
-            <div class="field">
+            <div class="field"><label>库文件大小</label><div id="dbSize">—</div></div>            <div class="field">
               <label>默认图补全</label>
               <div class="row-inline">
                 <button class="btn ghost" id="btnFillDefaults">补全默认图（后台）</button>
@@ -298,7 +299,6 @@
               <p class="hint">为库里「还没有图」的游戏补上 Steam 默认图；中途关掉软件也没关系，下次打开该库会自动继续。</p>
             </div>
             <div class="field"><label>数据位置</label><div class="hint">本软件的数据与缓存都放在一个独立的数据目录里，不会散落到系统其它位置。</div></div>
-            <div class="field"><button class="btn ghost" id="btnSwitchLib">切换 / 打开其他库文件</button></div>
             <div class="field">
               <label>.gameart 文件关联</label>
               <div class="row-inline">

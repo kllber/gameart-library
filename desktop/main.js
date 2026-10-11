@@ -25,10 +25,10 @@ const { app, BrowserWindow, Menu, shell, dialog } = require('electron');
 let mainWindow = null;
 let backendPort = 0;
 
-/* ---------------- 可写目录：便携版一律放程序目录内；Linux 打包版用 XDG ---------------- */
+/* ---------------- 可写目录：便携优先（Windows 便携版 / Linux AppImage 都放"程序所在文件夹"） ---------------- */
 const PORTABLE = process.env.GAMEART_PORTABLE === '1';
 
-/** 便携版根目录：显式指定 > AppImage 所在目录（squashfs 挂载点只读）> 应用目录的上一级 */
+/** 便携版根目录：显式指定 > AppImage 所在目录 > 应用目录的上一级 */
 function portableRoot() {
   if (process.env.GAMEART_PORTABLE_ROOT) return process.env.GAMEART_PORTABLE_ROOT;
   if (process.env.APPIMAGE) {
@@ -41,34 +41,61 @@ function portableRoot() {
   return path.resolve(__dirname, '..', '..');
 }
 
-if (PORTABLE) {
+/** Linux 旧版把数据放在 XDG 目录：首次便携运行时**整体搬过来**（同盘 rename = 瞬间；失败就跳过） */
+function migrateXdgDataInto(dataDir) {
+  if (process.platform !== 'linux') return;
   try {
-    const distRoot = portableRoot();
-    const dataDir = process.env.GAMEART_DATA_DIR || path.join(distRoot, 'data');
-    const tmpDir = process.env.GAMEART_TMP_DIR || path.join(distRoot, 'tmp');
-    fs.mkdirSync(dataDir, { recursive: true });
-    fs.mkdirSync(tmpDir, { recursive: true });
-    process.env.GAMEART_DATA_DIR = dataDir;
-    process.env.GAMEART_TMP_DIR = tmpDir;
-    // Chromium/Electron 的缓存、临时、崩溃转储也放程序目录（默认会去 %APPDATA% / ~/.config）
-    app.setPath('userData', path.join(dataDir, 'electron'));
-    try {
-      app.setPath('sessionData', path.join(dataDir, 'electron'));
-    } catch (e) {
-      /* ignore */
-    }
-    try {
-      app.setPath('temp', tmpDir);
-    } catch (e) {
-      /* ignore */
-    }
-    try {
-      app.setPath('crashDumps', path.join(dataDir, 'electron', 'crash'));
-    } catch (e) {
-      /* ignore */
-    }
+    if (fs.existsSync(dataDir) && fs.readdirSync(dataDir).length) return; // 已有内容 → 不动
+    const xdgBase = process.env.XDG_DATA_HOME || path.join(os.homedir(), '.local', 'share');
+    const old = path.join(xdgBase, 'gameart-library');
+    if (!fs.existsSync(old) || !fs.readdirSync(old).length) return;
+    fs.renameSync(old, dataDir);
+  } catch (e) {
+    /* 跨盘/权限等原因 → 放弃（不回退，继续用便携目录；旧数据仍在原处，用户可自行删除） */
+  }
+}
+
+/**
+ * 启用"便携模式"：data/ 与 tmp/ 放在**程序所在文件夹**内（移动文件夹即整体搬走）。
+ * - Windows 便携版一直如此；
+ * - Linux AppImage：v1.1.0 起也如此（用 `$APPIMAGE` 定位自身；移动后自动用新位置）。
+ * **可写性自检**：只读位置（如解压到只读目录）会抛错 → 调用方忽略，回退到 XDG。
+ */
+function enablePortable(root) {
+  const dataDir = process.env.GAMEART_DATA_DIR || path.join(root, 'data');
+  const tmpDir = process.env.GAMEART_TMP_DIR || path.join(root, 'tmp');
+  fs.mkdirSync(dataDir, { recursive: true });
+  fs.mkdirSync(tmpDir, { recursive: true });
+  const probe = path.join(dataDir, '.write-test');
+  fs.writeFileSync(probe, 'ok'); // 不可写就抛错（调用方回退）
+  fs.rmSync(probe, { force: true });
+  migrateXdgDataInto(dataDir);
+  process.env.GAMEART_DATA_DIR = dataDir;
+  process.env.GAMEART_TMP_DIR = tmpDir;
+  // Chromium/Electron 的缓存、临时、崩溃转储也放程序目录（默认会去 %APPDATA% / ~/.config）
+  app.setPath('userData', path.join(dataDir, 'electron'));
+  try {
+    app.setPath('sessionData', path.join(dataDir, 'electron'));
   } catch (e) {
     /* ignore */
+  }
+  try {
+    app.setPath('temp', tmpDir);
+  } catch (e) {
+    /* ignore */
+  }
+  try {
+    app.setPath('crashDumps', path.join(dataDir, 'electron', 'crash'));
+  } catch (e) {
+    /* ignore */
+  }
+}
+
+if (PORTABLE || process.env.APPIMAGE) {
+  try {
+    enablePortable(portableRoot());
+  } catch (e) {
+    // 只读/不可写 → 什么都不设，走后面的 XDG 分支（打包版默认行为）
   }
 }
 
@@ -185,7 +212,8 @@ async function startBackend() {
   process.env.NO_OPEN = '1'; // 不要用系统浏览器打开
   process.env.PORT = String(port);
   // 打包后程序目录只读（asar / AppImage 的 squashfs）：把可写目录指到用户可写处
-  if (app.isPackaged && !PORTABLE) {
+  // ⚠️ 若便携模式（Windows 便携版 / Linux AppImage）已经设过 GAMEART_DATA_DIR，这里**不要覆盖**
+  if (app.isPackaged && !process.env.GAMEART_DATA_DIR) {
     let dataBase;
     let tmpBase;
     if (process.platform === 'linux') {

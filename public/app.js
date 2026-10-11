@@ -46,7 +46,10 @@ const I18N_EN = {
   '库中游戏': 'Games',
   '艺术文件': 'Art files',
   '默认图同步': 'Default art sync',
-  '游戏名同步': 'Name sync',
+  '中文名同步': 'Chinese name sync',
+  '立即补全默认图': 'Fill default art now',
+  '立即拉取中文名': 'Fetch Chinese names now',
+  '已开始拉取中文名（后台进行）': 'Fetching Chinese names in the background.',
   '未绑定': 'Not bound',
   // 搜索
   '搜索库中游戏…': 'Search your games…',
@@ -107,7 +110,7 @@ const I18N_EN = {
   '库文件大小': 'Library size',
   '数据位置': 'Data location',
   '本软件的数据与缓存都放在一个独立的数据目录里，不会散落到系统其它位置。': 'App data and caches are stored in one dedicated folder; nothing is scattered elsewhere.',
-  '切换 / 打开其他库文件': 'Switch / open another library file',
+  '⇄ 切换 / 打开其他库文件': '⇄ Switch / open another library',
   '.gameart 文件关联': '.gameart file association',
   '关联到本软件': 'Associate with this app',
   '取消关联': 'Remove association',
@@ -2678,6 +2681,8 @@ function pollSync() {
   api('/api/library/import-progress')
     .then((p) => {
       const el = $('syncStatus');
+      const btn = $('btnQuickFill');
+      if (btn) btn.classList.toggle('spin', !!p.running);
       if (!el) return;
       if (p.running) {
         el.textContent = `${p.done}/${p.total}`;
@@ -2694,6 +2699,8 @@ function pollNames(showHint) {
   api('/api/library/name-progress')
     .then((p) => {
       const el = $('nameStatus');
+      const btn = $('btnQuickNames');
+      if (btn) btn.classList.toggle('spin', !!p.running);
       if (el) el.textContent = p.running ? `${p.done}/${p.total}` : p.total ? T('完成') : '—';
       const h = $('nameFetchHint');
       if (h && showHint)
@@ -3204,10 +3211,21 @@ function bind() {
     saveUi({ animCovers: $('setAnimCovers').value });
     scheduleCoverAnim(); // 立即按新策略重算（无需重渲染）
   });
-  $('btnFetchNames').addEventListener('click', async () => {
-    $('nameFetchHint').textContent = T('拉取中…');
+  // 拉取中文名（设置里的按钮 与 侧栏状态行的快捷 ⟳ 共用）
+  async function fetchNamesNow() {
+    const h = $('nameFetchHint');
+    if (h) h.textContent = T('拉取中…');
     await post('/api/library/fetch-names', {});
     pollNames(true);
+  }
+  $('btnFetchNames').addEventListener('click', fetchNamesNow);
+  $('btnQuickNames').addEventListener('click', async () => {
+    await fetchNamesNow();
+    toast(T('已开始拉取中文名（后台进行）'));
+  });
+  $('btnQuickFill').addEventListener('click', async () => {
+    await syncNow();
+    toast(T('已开始补全默认图（后台进行，可随时关闭软件）'));
   });
   $('btnFetchPreviews').addEventListener('click', async () => {
     const h = $('previewFetchHint');
