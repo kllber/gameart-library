@@ -1,0 +1,148 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1280" height="1000" viewBox="0 0 1280 1000" font-family="Segoe UI, PingFang SC, Microsoft YaHei, sans-serif">
+  <defs>
+    <linearGradient id="bg" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0" stop-color="#0b1020"/>
+      <stop offset="0.55" stop-color="#141b34"/>
+      <stop offset="1" stop-color="#241a3d"/>
+    </linearGradient>
+    <linearGradient id="brand" x1="0" y1="0" x2="1" y2="0">
+      <stop offset="0" stop-color="#4cc9ff"/>
+      <stop offset="1" stop-color="#b06bff"/>
+    </linearGradient>
+    <linearGradient id="core" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0" stop-color="#b06bff"/>
+      <stop offset="1" stop-color="#ff6bd6"/>
+    </linearGradient>
+    <radialGradient id="glow1" cx="0.12" cy="0.12" r="0.55">
+      <stop offset="0" stop-color="#4cc9ff" stop-opacity="0.30"/>
+      <stop offset="1" stop-color="#4cc9ff" stop-opacity="0"/>
+    </radialGradient>
+    <radialGradient id="glow2" cx="0.92" cy="0.95" r="0.6">
+      <stop offset="0" stop-color="#b06bff" stop-opacity="0.30"/>
+      <stop offset="1" stop-color="#b06bff" stop-opacity="0"/>
+    </radialGradient>
+    <marker id="arw" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse">
+      <path d="M 0 0 L 10 5 L 0 10 z" fill="#7f8fb3"/>
+    </marker>
+  </defs>
+
+  <rect width="1280" height="1000" fill="url(#bg)"/>
+  <rect width="1280" height="1000" fill="url(#glow1)"/>
+  <rect width="1280" height="1000" fill="url(#glow2)"/>
+
+  <!-- 标题 -->
+  <text x="60" y="76" font-size="40" font-weight="800" fill="#ffffff">.gameart 库文件结构</text>
+  <text x="62" y="110" font-size="17" fill="#9fb0d0">单文件 <tspan fill="#4cc9ff" font-weight="600">SQLite</tspan> · 图片以 <tspan fill="#b06bff" font-weight="600">BLOB</tspan> 内嵌 · <tspan fill="#c9d4ea" font-weight="700">复制这一个文件 = 完整备份</tspan> · Windows / Linux 通用</text>
+
+  <!-- 文件容器 -->
+  <rect x="60" y="140" width="1160" height="760" rx="22" fill="#ffffff07" stroke="#ffffff22"/>
+  <text x="92" y="180" font-size="19" font-weight="700" fill="#e9f0ff">📄  我的游戏艺术库.gameart</text>
+  <text x="92" y="205" font-size="14" fill="#8fa0c0">普通 SQLite 数据库文件（page 4KB · auto_vacuum 增量回收 · 不用 WAL）—— 可用任何 SQLite 工具直接打开查看</text>
+
+  <!-- ============ games ============ -->
+  <rect x="92" y="230" width="340" height="250" rx="14" fill="#0d1223" stroke="#4cc9ff" stroke-opacity="0.45"/>
+  <circle cx="114" cy="258" r="6" fill="#4cc9ff"/>
+  <text x="130" y="264" font-size="18" font-weight="700" fill="#ffffff">games</text>
+  <text x="412" y="264" font-size="13" fill="#8fa0c0" text-anchor="end">游戏（1 行 = 1 款游戏）</text>
+  <line x1="110" y1="280" x2="414" y2="280" stroke="#ffffff14"/>
+  <text x="112" y="308" font-size="14" fill="#c9d4ea"><tspan fill="#4cc9ff" font-weight="700">appid</tspan>（主键）</text>
+  <text x="112" y="334" font-size="14" fill="#c9d4ea">name / name_zh　英文名 / 中文名</text>
+  <text x="112" y="360" font-size="14" fill="#c9d4ea">sgdb_id　SteamGridDB 游戏 id</text>
+  <text x="112" y="386" font-size="14" fill="#c9d4ea">added_at　入库时间（"添加时间"排序）</text>
+  <text x="112" y="412" font-size="14" fill="#c9d4ea">deleted / deleted_at　<tspan fill="#ffd166">回收站（软删除）</tspan></text>
+  <text x="112" y="446" font-size="13" fill="#7f8fb3">📌 一条游戏记录 = AppID + 名字 + 分组 + 回收站状态</text>
+
+  <!-- ============ art ============ -->
+  <rect x="490" y="230" width="698" height="250" rx="14" fill="#120d24" stroke="#b06bff" stroke-opacity="0.6" stroke-width="1.5"/>
+  <circle cx="512" cy="258" r="6" fill="url(#core)"/>
+  <text x="528" y="264" font-size="18" font-weight="700" fill="#ffffff">art</text>
+  <text x="536" y="264" font-size="13" fill="#ff8ad0">　★ 图片本体就在这张表里</text>
+  <text x="1170" y="264" font-size="13" fill="#8fa0c0" text-anchor="end">艺术图（每种类型可存多张）</text>
+  <line x1="508" y1="280" x2="1170" y2="280" stroke="#ffffff14"/>
+  <text x="510" y="308" font-size="14" fill="#c9d4ea"><tspan fill="#b06bff" font-weight="700">appid</tspan>　属于哪款游戏　·　<tspan fill="#b06bff" font-weight="700">type</tspan>　portrait / grid / hero / logo / icon</text>
+  <rect x="506" y="320" width="666" height="30" rx="8" fill="#b06bff" fill-opacity="0.14"/>
+  <text x="518" y="340" font-size="14" fill="#f3e8ff"><tspan fill="#d9b8ff" font-weight="700">data</tspan>　BLOB ← <tspan font-weight="700">图片本体</tspan>（占库体积约 97%）　·　<tspan fill="#d9b8ff" font-weight="700">preview</tspan>　BLOB ← <tspan font-weight="700">动图的 .webm 预览</tspan></text>
+  <text x="510" y="378" font-size="14" fill="#c9d4ea">mime / file　写进 Steam 时用的扩展名（<tspan fill="#8fa0c0">.webp → 存成 .png</tspan>）</text>
+  <text x="510" y="404" font-size="14" fill="#c9d4ea">selected　<tspan fill="#7ee0c0" font-weight="600">当前选用</tspan>（同步到 Steam 的就是这张）　·　sort　画廊里的顺序</text>
+  <text x="510" y="430" font-size="14" fill="#c9d4ea">url / sgdb_id　"<tspan fill="#ffd166">配方</tspan>"：换机或图片损坏也能重新下载</text>
+  <text x="510" y="462" font-size="13" fill="#7f8fb3">📌 每张图 = 一行；图片二进制直接存在这一行里，所以库文件就是"保险箱"</text>
+
+  <!-- ============ settings ============ -->
+  <rect x="92" y="505" width="340" height="175" rx="14" fill="#0d1223" stroke="#ffffff1f"/>
+  <circle cx="114" cy="533" r="6" fill="#7ee0c0"/>
+  <text x="130" y="539" font-size="18" font-weight="700" fill="#ffffff">settings</text>
+  <text x="412" y="539" font-size="13" fill="#8fa0c0" text-anchor="end">库级设置（键值对）</text>
+  <line x1="110" y1="555" x2="414" y2="555" stroke="#ffffff14"/>
+  <text x="112" y="583" font-size="13.5" fill="#c9d4ea">sgdb_api_key / steam_api_key　你的 Key（<tspan fill="#7ee0c0">只存本地</tspan>）</text>
+  <text x="112" y="607" font-size="13.5" fill="#c9d4ea">ui　主题 / 强调色 / 卡片大小 / 动图策略</text>
+  <text x="112" y="631" font-size="13.5" fill="#c9d4ea">custom_order_map　<tspan fill="#ffd166">每个视图各自</tspan>的自定义排序</text>
+  <text x="112" y="655" font-size="13.5" fill="#c9d4ea">fill_queue / name_zh_none　补图待办 / 无中文名跳过表</text>
+
+  <!-- ============ steam_accounts ============ -->
+  <rect x="490" y="505" width="300" height="175" rx="14" fill="#0d1223" stroke="#ffffff1f"/>
+  <circle cx="512" cy="533" r="6" fill="#4cc9ff"/>
+  <text x="528" y="539" font-size="18" font-weight="700" fill="#ffffff">steam_accounts</text>
+  <line x1="508" y1="555" x2="772" y2="555" stroke="#ffffff14"/>
+  <text x="510" y="583" font-size="13.5" fill="#c9d4ea"><tspan fill="#4cc9ff" font-weight="700">steam_id64</tspan>（主键）</text>
+  <text x="510" y="607" font-size="13.5" fill="#c9d4ea">persona / avatar　昵称 / 头像</text>
+  <text x="510" y="631" font-size="13.5" fill="#c9d4ea">api_key　可用各自的 Web API Key</text>
+  <text x="510" y="655" font-size="13.5" fill="#8fa0c0">用来读"你拥有哪些游戏"</text>
+
+  <!-- ============ owned_games ============ -->
+  <rect x="830" y="505" width="358" height="175" rx="14" fill="#0d1223" stroke="#ffffff1f"/>
+  <circle cx="852" cy="533" r="6" fill="#4cc9ff"/>
+  <text x="868" y="539" font-size="18" font-weight="700" fill="#ffffff">owned_games</text>
+  <text x="1170" y="539" font-size="13" fill="#8fa0c0" text-anchor="end">已拥有清单</text>
+  <line x1="848" y1="555" x2="1170" y2="555" stroke="#ffffff14"/>
+  <text x="850" y="583" font-size="13.5" fill="#c9d4ea"><tspan fill="#4cc9ff" font-weight="700">steam_id64</tspan> + <tspan fill="#4cc9ff" font-weight="700">appid</tspan>（联合主键）</text>
+  <text x="850" y="607" font-size="13.5" fill="#c9d4ea">name / playtime　游戏名 / 时长</text>
+  <text x="850" y="631" font-size="13.5" fill="#c9d4ea">「从 Steam 库添加」的数据来源</text>
+  <text x="850" y="655" font-size="13.5" fill="#7ee0c0">导入时游戏名就取自这里</text>
+
+  <!-- ============ categories ============ -->
+  <rect x="92" y="705" width="340" height="175" rx="14" fill="#0d1223" stroke="#ffffff1f"/>
+  <circle cx="114" cy="733" r="6" fill="#ffd166"/>
+  <text x="130" y="739" font-size="18" font-weight="700" fill="#ffffff">categories</text>
+  <text x="412" y="739" font-size="13" fill="#8fa0c0" text-anchor="end">自定义分类</text>
+  <line x1="110" y1="755" x2="414" y2="755" stroke="#ffffff14"/>
+  <text x="112" y="783" font-size="13.5" fill="#c9d4ea"><tspan fill="#ffd166" font-weight="700">id</tspan>（主键）</text>
+  <text x="112" y="807" font-size="13.5" fill="#c9d4ea">name　分类名（RPG / FPS …）</text>
+  <text x="112" y="831" font-size="13.5" fill="#c9d4ea">sort　分类顺序</text>
+  <text x="112" y="857" font-size="13.5" fill="#8fa0c0">删分类只解绑，不删游戏</text>
+
+  <!-- ============ game_categories ============ -->
+  <rect x="490" y="705" width="300" height="175" rx="14" fill="#0d1223" stroke="#ffffff1f"/>
+  <circle cx="512" cy="733" r="6" fill="#ffd166"/>
+  <text x="528" y="739" font-size="18" font-weight="700" fill="#ffffff">game_categories</text>
+  <line x1="508" y1="755" x2="772" y2="755" stroke="#ffffff14"/>
+  <text x="510" y="783" font-size="13.5" fill="#c9d4ea"><tspan fill="#ffd166" font-weight="700">category_id</tspan> + <tspan fill="#ffd166" font-weight="700">appid</tspan></text>
+  <text x="510" y="807" font-size="13.5" fill="#c9d4ea">游戏 ↔ 分类　的对应关系</text>
+  <text x="510" y="831" font-size="13.5" fill="#c9d4ea">多对多：一个游戏可属多个分类</text>
+  <text x="510" y="857" font-size="13.5" fill="#8fa0c0">"加入顺序"也用它（rowid）</text>
+
+  <!-- ============ 设计要点 ============ -->
+  <rect x="830" y="705" width="358" height="175" rx="14" fill="#0e1a1a" stroke="#7ee0c0" stroke-opacity="0.35"/>
+  <text x="852" y="739" font-size="18" font-weight="700" fill="#7ee0c0">设计要点</text>
+  <line x1="848" y1="755" x2="1170" y2="755" stroke="#ffffff14"/>
+  <text x="850" y="783" font-size="13.5" fill="#c9d4ea">① 图片内嵌 → 复制一个文件＝完整备份 / 迁移</text>
+  <text x="850" y="807" font-size="13.5" fill="#c9d4ea">② 列表接口只读元数据（<tspan fill="#7ee0c0">不带 BLOB</tspan>）</text>
+  <text x="850" y="831" font-size="13.5" fill="#c9d4ea">③ 删游戏＝软删除（进回收站，可还原）</text>
+  <text x="850" y="855" font-size="13.5" fill="#c9d4ea">④ url / sgdb_id 是"配方" → 图丢了可重下</text>
+
+  <!-- ============ 关系箭头 ============ -->
+  <line x1="432" y1="350" x2="486" y2="350" stroke="#7f8fb3" stroke-width="1.6" marker-end="url(#arw)"/>
+  <text x="459" y="340" font-size="12.5" fill="#9fb0d0" text-anchor="middle">1 : N</text>
+
+  <polyline points="432,430 461,430 461,750 486,750" fill="none" stroke="#7f8fb3" stroke-width="1.6" marker-end="url(#arw)"/>
+  <text x="461" y="600" font-size="12.5" fill="#9fb0d0" text-anchor="middle">1 : N</text>
+
+  <line x1="432" y1="800" x2="486" y2="800" stroke="#7f8fb3" stroke-width="1.6" marker-end="url(#arw)"/>
+  <text x="459" y="790" font-size="12.5" fill="#9fb0d0" text-anchor="middle">1 : N</text>
+
+  <line x1="790" y1="592" x2="826" y2="592" stroke="#7f8fb3" stroke-width="1.6" marker-end="url(#arw)"/>
+  <text x="808" y="582" font-size="12.5" fill="#9fb0d0" text-anchor="middle">1 : N</text>
+
+  <!-- 图例 -->
+  <text x="92" y="938" font-size="14" fill="#9fb0d0">图例：<tspan fill="#4cc9ff" font-weight="700">彩色字段 = 主键</tspan>　·　1 : N = 一对多　·　<tspan fill="#b06bff" font-weight="700">art</tspan> 是核心表（图片本体在里面）　·　库文件可用任何 SQLite 工具打开</text>
+  <text x="92" y="966" font-size="14" fill="#7f8fb3">提示：想自己看，先<tspan fill="#ffd166" font-weight="600">复制一份</tspan>再用 DB Browser for SQLite 打开（软件运行中不要直接改库）。</text>
+</svg>

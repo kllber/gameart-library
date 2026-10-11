@@ -50,6 +50,16 @@
 
 一个 SQLite 容器，**图片以 BLOB 内嵌**：复制一个文件 = 完整备份，换电脑直接带走；也可随时「新建/打开/切换」不同库文件。
 
+### 🗄️ 库文件里到底存了什么？（结构图）
+
+`.gameart` 就是一个**普通的 SQLite 数据库文件**（不是自定义格式），图片以 **BLOB 内嵌** —— 所以**复制这一个文件 = 完整备份 / 迁移**，Windows 与 Linux 都能直接打开。
+
+<img src="docs/db-structure.svg" alt=".gameart 库文件结构图" width="100%">
+
+> 💡 **想自己看？** 先**复制一份**，再用 [DB Browser for SQLite](https://sqlitebrowser.org/) 打开（软件运行中别直接改库）。常用查询：
+> `SELECT appid, name, name_zh FROM games WHERE COALESCE(deleted,0)=0;`（库里有哪些游戏）·
+> `SELECT appid, type, COUNT(*) FROM art GROUP BY appid, type;`（每款游戏各类图的数量）
+
 ### ⬇️ 从 Steam 库添加
 
 绑定 Steam Web API 后，一键列出你**已拥有**的游戏（显示“有封面/无封面/已拥有/已安装/已在库中”），勾选即导入，并自动补齐已有封面。
