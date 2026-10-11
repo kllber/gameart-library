@@ -46,7 +46,7 @@ fs.rmSync(SANDBOX, { recursive: true, force: true });
   console.log('  mimeapps =', path.relative(ROOT, P.mimeapps));
   console.log('断言:');
 
-  const s0 = fileassoc.getStatus();
+  const s0 = await fileassoc.getStatus();
   check('未关联时 supported=true / registered=false', s0.supported === true && s0.registered === false, s0);
 
   const r = await fileassoc.register();
@@ -82,16 +82,17 @@ fs.rmSync(SANDBOX, { recursive: true, force: true });
 
   check('缺命令时优雅降级（返回 warning 而非报错）', r.warning === null || typeof r.warning === 'string');
 
-  const s1 = fileassoc.getStatus();
+  const s1 = await fileassoc.getStatus();
   check('注册后 registered=true', s1.registered === true, s1);
 
   const a1 = await fileassoc.autoRegister();
   check('已关联且文件一致时 autoRegister 跳过（already）', a1.ok === true && a1.skipped === 'already', a1);
-  check('注册后 filesMatch=true', fileassoc.getStatus().filesMatch === true, fileassoc.getStatus());
+  const sFiles = await fileassoc.getStatus();
+  check('注册后 filesMatch=true', sFiles.filesMatch === true, sFiles);
 
   // 自愈：把生成的 xml 改坏（模拟旧版本的笔误），autoRegister 应重写它
   fs.writeFileSync(P.mimeXml, fs.readFileSync(P.mimeXml, 'utf8').replace('application-x-gameart', 'application/x-gameart'), 'utf8');
-  check('xml 被改坏后 filesMatch=false', fileassoc.getStatus().filesMatch === false);
+  check('xml 被改坏后 filesMatch=false', (await fileassoc.getStatus()).filesMatch === false);
   const a1c = await fileassoc.autoRegister();
   check('autoRegister 自愈重写', a1c.ok === true && !a1c.skipped, a1c);
   check('自愈后 xml 图标名正确', has(P.mimeXml, '<icon name="application-x-gameart"/>'));
@@ -106,11 +107,11 @@ fs.rmSync(SANDBOX, { recursive: true, force: true });
   check('取消后 .desktop 已删', !fs.existsSync(P.desktop));
   check('取消后 MIME xml 已删', !fs.existsSync(P.mimeXml));
   check('取消后 mimeapps 里无我们的关联', !has(P.mimeapps, 'application/x-gameart=gameart-library.desktop'));
-  check('取消后 registered=false', fileassoc.getStatus().registered === false);
+  check('取消后 registered=false', (await fileassoc.getStatus()).registered === false);
 
   const a2 = await fileassoc.autoRegister();
   check('未关联时 autoRegister 会自动写入', a2.ok === true && !a2.skipped, a2);
-  check('autoRegister 后 registered=true', fileassoc.getStatus().registered === true);
+  check('autoRegister 后 registered=true', (await fileassoc.getStatus()).registered === true);
 
   // 创建桌面快捷方式（把桌面目录指到测试沙箱，别写真实家目录）
   fs.mkdirSync(process.env.XDG_CONFIG_HOME, { recursive: true });

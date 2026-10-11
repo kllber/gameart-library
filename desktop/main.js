@@ -400,6 +400,12 @@ app.whenReady().then(async () => {
     // 默认自动关联 .gameart（未关联 / 安装位置变了才写），用户无需手动点「关联到本软件」
     try {
       const fileassoc = require('../src/fileassoc');
+      // 启动时预取注册表里的 Steam 路径（异步，别在用户操作时才同步跑 reg query；见 §10 #82）
+      try {
+        require('../src/platform').prefetchSteamCandidates().catch(() => {});
+      } catch (e) {
+        /* ignore */
+      }
       fileassoc
         .autoRegister()
         .then((r) => {

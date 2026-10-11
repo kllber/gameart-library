@@ -22,7 +22,7 @@
 const fs = require('fs');
 const os = require('os');
 const path = require('path');
-const { execFileSync, execFile } = require('child_process');
+const { execFile } = require('child_process');
 
 const IS_WINDOWS = process.platform === 'win32';
 const IS_LINUX = process.platform === 'linux';
@@ -30,32 +30,63 @@ const IS_MAC = process.platform === 'darwin';
 
 /* ---------------- Steam 安装根目录探测 ---------------- */
 
+const WIN_FALLBACK = ['C:\\Program Files (x86)\\Steam', 'C:\\Program Files\\Steam'];
+let _winCands = null; // 注册表预取结果（null = 还没取到）
+let _prefetch = null;
+
+/**
+ * 异步读一个注册表值。
+ * ⚠️ 以前用 `execFileSync`：每次 `reg query` 会在**主进程**同步阻塞 100~300ms，
+ * 而启动时一口气查 3 次 → 用户第一次操作时窗口明显卡顿。现在一律异步（见 §10 #82）。
+ */
 function windowsRegistryValue(key, value) {
-  try {
-    const out = execFileSync('reg', ['query', key, '/v', value], { encoding: 'utf8', windowsHide: true });
-    const m = out.match(new RegExp(value + '\\s+REG_SZ\\s+(.+)', 'i'));
-    if (m) return m[1].trim();
-  } catch (e) {
-    /* ignore */
-  }
-  return null;
+  return new Promise((resolve) => {
+    try {
+      execFile(
+        'reg',
+        ['query', key, '/v', value],
+        { encoding: 'utf8', windowsHide: true, timeout: 8000 },
+        (err, stdout) => {
+          if (err) return resolve(null);
+          const m = String(stdout || '').match(new RegExp(value + '\\s+REG_SZ\\s+(.+)', 'i'));
+          resolve(m ? m[1].trim() : null);
+        }
+      );
+    } catch (e) {
+      resolve(null);
+    }
+  });
+}
+
+/**
+ * **启动时预取** Windows 注册表里的 Steam 安装路径（只跑一次，异步、不阻塞）。
+ * `server.js` 与 `desktop/main.js` 在启动阶段调用；请求路径上再 `await` 一次即可（已就绪时立即返回）。
+ */
+function prefetchSteamCandidates() {
+  if (!IS_WINDOWS) return Promise.resolve(null);
+  if (_winCands) return Promise.resolve(_winCands);
+  if (_prefetch) return _prefetch;
+  _prefetch = (async () => {
+    const vals = await Promise.all([
+      windowsRegistryValue('HKCU\\Software\\Valve\\Steam', 'SteamPath'),
+      windowsRegistryValue('HKLM\\SOFTWARE\\WOW6432Node\\Valve\\Steam', 'InstallPath'),
+      windowsRegistryValue('HKLM\\SOFTWARE\\Valve\\Steam', 'InstallPath'),
+    ]);
+    _winCands = [...vals.filter(Boolean), ...WIN_FALLBACK];
+    return _winCands;
+  })();
+  return _prefetch;
 }
 
 /**
  * 可能的 Steam 安装根目录（未做存在性校验，交给 looksLikeSteamRoot 判断）。
- * Windows：注册表 + 默认安装路径兜底（不再遍历所有盘）。
+ * Windows：注册表（**预取缓存**）+ 默认安装路径兜底（不再遍历所有盘）。
  * Linux  ：原生 Steam / Flatpak Steam / Snap Steam 的常见位置（Bazzite、SteamOS 等）。
  */
 function steamInstallCandidates() {
   const out = [];
   if (IS_WINDOWS) {
-    out.push(
-      windowsRegistryValue('HKCU\\Software\\Valve\\Steam', 'SteamPath'),
-      windowsRegistryValue('HKLM\\SOFTWARE\\WOW6432Node\\Valve\\Steam', 'InstallPath'),
-      windowsRegistryValue('HKLM\\SOFTWARE\\Valve\\Steam', 'InstallPath'),
-      'C:\\Program Files (x86)\\Steam',
-      'C:\\Program Files\\Steam'
-    );
+    out.push(...(_winCands || WIN_FALLBACK));
   } else {
     const home = os.homedir();
     out.push(
@@ -270,6 +301,7 @@ module.exports = {
   IS_LINUX,
   IS_MAC,
   steamInstallCandidates,
+  prefetchSteamCandidates,
   looksLikeSteamRoot,
   isSteamRunning,
   pickOpenFile,

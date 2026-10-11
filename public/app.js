@@ -121,7 +121,8 @@ const I18N_EN = {
   '清理默认图缓存': 'Clear default-art cache',
   '清理备份': 'Clear backups',
   '清理临时文件': 'Clear temp files',
-  '缓存/临时文件都在上面的数据目录内，可用按钮释放空间；清理缓存/备份不影响 .gameart 库里的艺术作品。': 'Cache/temp files live in the data folder above; use the buttons to free space. Clearing cache/backups does not affect artwork inside .gameart.',
+  '缓存/临时文件都在上面的数据目录内，可用按钮释放空间；清理缓存/备份不影响 .gameart 库里的艺术作品（缩略图也会一起清掉，之后会自动重新生成）。':
+    'Cache/temp files live in the data folder above; use the buttons to free space. Clearing cache/backups does not affect artwork inside .gameart (thumbnails are cleared too and will be regenerated automatically).',
   '名称': 'Name',
   '版本': 'Version',
   '作者': 'Author',
@@ -324,7 +325,21 @@ const I18N_EN = {
   '添加失败': 'Add failed',
   '保存失败': 'Save failed',
   '库内艺术图占用：': 'Artwork inside the library: ',
+  '库内艺术图占用：{0}（{1}）': 'Artwork inside the library: {0} ({1})',
+  '（数据目录：{0}）': ' (data dir: {0})',
+  '缩略图': 'Thumbnails',
+  '图片缩略图（浏览更流畅）': 'Image thumbnails (smoother browsing)',
+  '为大图生成显示用的缩略图（存在缓存目录里，可随缓存一起清理；<b>不会改动库里的原图</b>）。生成过程**没有任何待办状态**，中途关掉软件只是下次继续补齐。':
+    'Generates display-size thumbnails for large artwork (kept in the cache folder, cleared together with the cache; <b>your originals are never modified</b>). There is <b>no pending-job state</b> — closing the app mid-way simply continues next time.',
+  '生成缩略图（后台）': 'Generate thumbnails (background)',
+  '正在生成缩略图 {0}/{1}…': 'Generating thumbnails {0}/{1}…',
+  '正在生成缩略图…': 'Generating thumbnails…',
+  '已生成 {0} 张（下次浏览更快）': '{0} generated (faster next time)',
+  '已生成 {0} 张缩略图（下次浏览更快）': '{0} thumbnails generated (faster next time)',
+  '缩略图已在设置里关闭': 'Thumbnails are disabled in settings',
   '{0} {1} 张 / {2}': '{0}: {1} files / {2}',
+  '计算中…': 'Calculating…',
+  '正在定位 SteamGridDB 游戏…': 'Locating the SteamGridDB game…',
   '下载失败': 'Download failed',
   '加入失败': 'Failed to add',
   '刷新失败': 'Refresh failed',
@@ -555,6 +570,8 @@ const state = {
   customOrders: {}, // 各视图的自定义顺序：{ all:[...], "<catId>":[...] }
   catMemberOrder: {}, // 各分类成员的"加入顺序"（默认顺序）
   selectedCards: new Set(), // 自定义排序下 Ctrl 多选的卡片
+  thumbsOn: true, // 「显示用缩略图」开关（设置里可关；见 §10 #88）
+  thumbW: 0, // 当前需要的缩略图宽度（按窗口/卡片大小/DPR 计算）
 };
 
 async function api(path, opts) {
@@ -691,8 +708,11 @@ function uiConfirm(opts) {
   });
 }
 
-function assetUrl(appid, file) {
-  return `/asset?appid=${encodeURIComponent(appid)}&file=${encodeURIComponent(file)}`;
+function assetUrl(appid, file, w) {
+  let u = `/asset?appid=${encodeURIComponent(appid)}&file=${encodeURIComponent(file)}`;
+  const width = w === undefined ? state.thumbW : w;
+  if (state.thumbsOn && width) u += '&w=' + width; // 有缩略图就用缩略图（服务端只读缓存，没命中会给原图）
+  return u;
 }
 function previewUrl(appid, file) {
   return `/preview?appid=${encodeURIComponent(appid)}&file=${encodeURIComponent(file)}`;
@@ -770,6 +790,9 @@ const SHOW_LABELS = { portrait: '竖向封面', grid: '横向封面', hero: '大
  */
 function coverForType(g, type) {
   const out = [];
+  // 填充策略：与卡片同类型 → cover（填满，无黑边）；回退到别的类型 → blur（虚化填充，不裁切）；
+  // Logo 带透明通道、比卡片矮 → plain（contain + 深灰底，避免黑色 Logo 看不见）。见 §10 #84。
+  const fitOf = (t) => (t !== type ? 'blur' : t === 'logo' ? 'plain' : 'cover');
   const addCustom = (t) => {
     const row = pickArt(g, t);
     if (!row) return;
@@ -777,12 +800,14 @@ function coverForType(g, type) {
       url: assetUrl(g.appid, row.file),
       tall: t === 'portrait',
       kind: 'custom',
+      type: t,
+      fit: fitOf(t),
       animated: row.mime === 'image/webp',
       preview: row.has_preview ? previewUrl(g.appid, row.file) : null,
     });
   };
   const addDefault = (t) => {
-    if (isSteamAppid(g.appid)) out.push({ url: defaultUrl(g.appid, t), tall: t === 'portrait', kind: 'default' });
+    if (isSteamAppid(g.appid)) out.push({ url: defaultUrl(g.appid, t), tall: t === 'portrait', kind: 'default', type: t, fit: fitOf(t) });
   };
   const CHAIN = {
     portrait: [['portrait', 'c'], ['portrait', 'd'], ['grid', 'c'], ['hero', 'c'], ['grid', 'd'], ['logo', 'c']],
@@ -804,6 +829,30 @@ function syncShowUi() {
   document.querySelectorAll('#showDdMenu .dd-item').forEach((b) => {
     b.classList.toggle('active', b.dataset.value === state.showType);
   });
+}
+
+/**
+ * 切换「显示」类型：**只原地换每张卡片的封面**，不整片重建 DOM。
+ * 为什么：以前走 saveUi → render()，284 张卡片全部重建 + 图片全部重新下载/解码，
+ * 用户看到的是"切换显示时卡一下"（见 §10 #86）。现在只改封面节点。
+ */
+function applyShowType() {
+  document.body.dataset.show = state.showType;
+  state.thumbW = computeThumbW(); // 卡片尺寸跟着「显示」类型变 → 需要多宽的图也要重算
+  syncShowUi();
+  const grid = $('grid');
+  if (!grid) return;
+  const byId = new Map((state.games || []).map((g) => [String(g.appid), g]));
+  let order = 0;
+  for (const card of grid.querySelectorAll('.card')) {
+    const g = byId.get(String(card.dataset.appid));
+    const thumb = card.querySelector('.thumb');
+    if (!g || !thumb) continue;
+    const old = thumb.querySelector('video, img');
+    if (old) unregisterCoverAnim(old); // 旧的动图节点要被丢掉，先解除观察
+    thumb.className = 'thumb ' + (THUMB_CLASS[state.showType] || 'tall');
+    buildCardThumb(thumb, coverForType(g, state.showType), g, order++);
+  }
 }
 
 function placeholderThumb(g) {
@@ -924,32 +973,64 @@ function clearCoverAnims() {
   COVER_ANIM.items = [];
 }
 
-/** 生成"虚化填充背景"的开关函数（竖向不够时用横图铺底） */
-function ensureFillFor(thumb) {
-  return (wide) => {
+/** 注销单个动图封面（切换显示类型时旧节点会被丢弃，必须解除观察，否则白占播放名额） */
+function unregisterCoverAnim(node) {
+  const it = node && node.__coverAnim;
+  if (!it) return;
+  try {
+    getCoverIO().unobserve(node);
+  } catch (e) {
+    /* ignore */
+  }
+  const i = COVER_ANIM.items.indexOf(it);
+  if (i >= 0) COVER_ANIM.items.splice(i, 1);
+  try {
+    delete node.__coverAnim;
+  } catch (e) {
+    /* ignore */
+  }
+}
+
+/** 生成"填充策略"切换器：
+ *  · `cover` = 图与卡片同比例 → **填满**（看不出黑边）
+ *  · `blur`  = 回退到别的类型（例如要竖版但只有横版）→ **虚化填充 + contain**（不裁切）
+ *  · `plain` = Logo 这类"带透明通道、不能裁切"的 → contain + 深灰底（不虚化，见 §10 #84）
+ */
+function ensureFitFor(thumb) {
+  const setBlur = (on) => {
     let bg = thumb.querySelector('.thumb-bg');
-    if (wide && !bg) {
+    if (on && !bg) {
       bg = document.createElement('div');
       bg.className = 'thumb-bg';
       thumb.insertBefore(bg, thumb.firstChild);
       thumb.classList.add('fill');
-    } else if (!wide && bg) {
+    } else if (!on && bg) {
       bg.remove();
       thumb.classList.remove('fill');
     }
   };
+  return (fit) => {
+    setBlur(fit === 'blur');
+    thumb.classList.toggle('contain', fit === 'plain');
+  };
+}
+
+/** 兼容旧签名（tall=true 表示"竖版，铺满"） */
+function ensureFillFor(thumb) {
+  const f = ensureFitFor(thumb);
+  return (wide) => f(wide ? 'blur' : 'cover');
 }
 
 /** 主页封面（非视频）：沿用原来的"逐级回退 + 动图静态首帧"逻辑 */
 function buildCoverImg(thumb, cands, g) {
-  const ensureFill = ensureFillFor(thumb);
+  const fit = ensureFitFor(thumb);
   const img = document.createElement('img');
   img.loading = 'lazy';
   img.decoding = 'async';
   img.alt = '';
   let idx = 0;
   const applySrc = (c) => {
-    ensureFill(!c.tall);
+    fit(c.fit || (c.tall ? 'cover' : 'blur'));
     img.src = c.url;
     const bg = thumb.querySelector('.thumb-bg');
     if (bg) bg.style.backgroundImage = 'url("' + c.url.replace(/"/g, '\\"') + '")';
@@ -966,6 +1047,32 @@ function buildCoverImg(thumb, cands, g) {
   applySrc(cands[0]);
   if (cands[0].animated && cands[0].url.startsWith('/')) freezeAnimatedCover(img, cands[0].url);
   thumb.appendChild(img);
+}
+
+/** 构建一张卡片里的封面（视频/图片/占位），供 render() 与"切换显示类型"复用 */
+function buildCardThumb(thumb, cands, g, order) {
+  thumb.innerHTML = '';
+  const first = cands && cands[0];
+  if (!first) {
+    thumb.appendChild(placeholderThumb(g));
+    return;
+  }
+  if (first.preview) {
+    // 有 .webm 预览 → 视频封面（一直播 / 悬停播，受可见与并发限制）
+    ensureFitFor(thumb)(first.fit || (first.tall ? 'cover' : 'blur'));
+    const bg = thumb.querySelector('.thumb-bg');
+    if (bg) bg.style.backgroundImage = 'url("' + first.url.replace(/"/g, '\\"') + '")';
+    const v = mountAnimatedCover(thumb, { posterUrl: first.url, videoUrl: first.preview, order: order || 0 });
+    if (v) {
+      v.addEventListener('error', () => {
+        v.remove();
+        buildCoverImg(thumb, cands, g); // 预览加载失败 → 退回静态/动图 img
+      });
+      thumb.appendChild(v);
+      return;
+    }
+  }
+  buildCoverImg(thumb, cands, g);
 }
 
 /**
@@ -1302,6 +1409,7 @@ function render() {
   clearCoverAnims(); // 旧的封面动画节点将被丢弃，先解除观察
   grid.innerHTML = '';
   state.selectedCards.clear(); // 重建后旧的多选项已失效
+  state.thumbW = computeThumbW(); // 卡片需要多宽的图（决定用哪个尺寸的缩略图）
   const q = state.search.trim().toLowerCase();
 
   const list = sortGames(
@@ -1335,34 +1443,10 @@ function render() {
         .map((t) => `<span class="b b-${t}">${T(TYPE_LABELS[t])}</span>`)
         .join('') + (!hasCustomPortrait && isSteamAppid(g.appid) ? `<span class="b b-default">${T('默认')}</span>` : '');
 
-    // 统一竖版：若没有竖版可用，则用横版/大背景图做虚化填充
+    // 封面：按「显示」类型构建（同类型 → 填满、回退到别的类型 → 虚化、Logo → contain 不裁切）
     const thumb = document.createElement('div');
     thumb.className = 'thumb ' + (THUMB_CLASS[state.showType] || 'tall');
-    if (cands.length) {
-      const first = cands[0];
-      const coverOrder = order++;
-      if (first.preview) {
-        // 有 .webm 预览 → 视频封面（一直播 / 悬停播，受可见与并发限制）
-        const ensureFill = ensureFillFor(thumb);
-        ensureFill(!first.tall);
-        const bg = thumb.querySelector('.thumb-bg');
-        if (bg) bg.style.backgroundImage = 'url("' + first.url.replace(/"/g, '\\"') + '")';
-        const v = mountAnimatedCover(thumb, { posterUrl: first.url, videoUrl: first.preview, order: coverOrder });
-        if (v) {
-          v.addEventListener('error', () => {
-            v.remove();
-            buildCoverImg(thumb, cands, g); // 预览加载失败 → 退回静态/动图 img
-          });
-          thumb.appendChild(v);
-        } else {
-          buildCoverImg(thumb, cands, g);
-        }
-      } else {
-        buildCoverImg(thumb, cands, g);
-      }
-    } else {
-      thumb.appendChild(placeholderThumb(g));
-    }
+    buildCardThumb(thumb, cands, g, order++);
 
     const info = document.createElement('div');
     info.className = 'card-info';
@@ -1926,28 +2010,45 @@ async function choiceSgdbFlow() {
     openArtPicker({ sgdbGameId: c.sgdbId, name: c.name, appid: c.appid, type: c.type, mode: 'detail' });
     return;
   }
-  // 用 Steam AppID 直接定位 SGDB 游戏，直接进入选图（无需再搜索）
-  if (isSteamAppid(c.appid)) {
-    try {
-      const r = await api('/api/sgdb/game?appid=' + encodeURIComponent(c.appid));
-      if (r.game) {
-        post('/api/library/add', { appid: c.appid, name: c.name, sgdbGameId: r.game.id });
-        openArtPicker({ sgdbGameId: r.game.id, name: r.game.name || c.name, appid: c.appid, type: c.type, mode: 'detail' });
-        return;
-      }
-    } catch (e) {
-      /* ignore */
-    }
-  }
-  // 找不到才回退到"搜索"
-  if (state.detail) $('detailModal').hidden = true;
-  openAdd(c.name || '', c.appid, c.type);
-  $('addNotice').hidden = false;
-  $('addNotice').textContent = TP(
+  const noticeText = TP(
     '选择一个游戏，其封面会加到「{0}」的「{1}」里。',
     c.name || c.appid,
     T(TYPE_LABELS[c.type] || c.type)
   );
+  // 用 Steam AppID 直接定位 SGDB 游戏，直接进入选图（无需再搜索）
+  if (isSteamAppid(c.appid)) {
+    // ⚡ 关键：**先立刻打开选图器**（显示"正在定位…"），再后台查 SGDB 游戏 id。
+    // 以前的顺序是「先 await 网络（0.3~2 秒，且没有任何反馈）→ 才打开弹窗」，
+    // 用户感觉"点了没反应 / 有时要等两秒"（见 §10 #83）。
+    openArtPicker({ sgdbGameId: null, name: c.name, appid: c.appid, type: c.type, mode: 'detail', pendingLookup: true });
+    try {
+      const r = await api('/api/sgdb/game?appid=' + encodeURIComponent(c.appid));
+      if (r.game && r.game.id) {
+        post('/api/library/add', { appid: c.appid, name: c.name, sgdbGameId: r.game.id });
+        // 用户可能已经关掉/切走了，只有仍停在同一款游戏上才继续填
+        if (state.art && String(state.art.appid) === String(c.appid)) {
+          state.art.sgdbGameId = r.game.id;
+          state.art.pendingLookup = false;
+          if (r.game.name) state.art.name = r.game.name;
+          $('artTabs').hidden = false;
+          $('artFilters').hidden = false;
+          renderArtTabs();
+          loadArt(true);
+        }
+        return;
+      }
+    } catch (e) {
+      /* 网络/接口失败 → 下面回退到"搜索"方式 */
+    }
+    // 定位不到 → 关掉选图器，回退到搜索
+    $('artModal').hidden = true;
+    afterModalClose();
+  }
+  // 回退：搜索方式
+  if (state.detail) $('detailModal').hidden = true;
+  openAdd(c.name || '', c.appid, c.type);
+  $('addNotice').hidden = false;
+  $('addNotice').textContent = noticeText;
 }
 
 function choiceImportFlow() {
@@ -2104,8 +2205,7 @@ async function openSync() {
   refreshOwned(true); // 后台刷新：新买的游戏也会出现
 }
 
-/** 重新拉取"拥有列表"（买了新游戏后）；silent=不弹提示 */
-async function refreshOwned(silent) {
+/** 重新拉取"拥有列表"（买了新游戏后）；silent=不弹提示 */async function refreshOwned(silent) {
   const btn = $('btnSyncRefresh');
   if (btn) btn.disabled = true;
   const r = await post('/api/steam/refresh', {});
@@ -2338,7 +2438,17 @@ function filterArts(arts) {
   });
 }
 
-function openArtPicker({ sgdbGameId, name, appid, type, mode }) {
+/** 选图器网格里显示一句提示（用于"正在定位…"这类等待态） */
+function showArtGridMessage(text) {
+  artCellCache = new Map();
+  artCellKey = '';
+  const grid = $('artGrid');
+  if (!grid) return;
+  grid.innerHTML = `<div class="muted" style="padding:16px;grid-column:1/-1">${esc(text)}</div>`;
+  $('artPickCount').textContent = '';
+}
+
+function openArtPicker({ sgdbGameId, name, appid, type, mode, pendingLookup }) {
   // 类型至少选一个（官网规则）
   if (!$('afStatic').checked && !$('afAnimated').checked) $('afStatic').checked = true;
   state.art = {
@@ -2348,18 +2458,27 @@ function openArtPicker({ sgdbGameId, name, appid, type, mode }) {
     type: type || 'portrait',
     mode: mode || 'add',
     loading: false,
+    pendingLookup: !!pendingLookup,
     cache: {}, // 每次打开都重新拉取（不做跨次缓存）
     filters: artFiltersFromCheckboxes(),
   };
   $('artSub').textContent = T('当前：') + (name || appid || '') + T(' · 点任意一张即可加入你的库');
   $('artSearch').value = name || '';
   $('artResults').hidden = true;
-  $('artTabs').hidden = false;
-  $('artFilters').hidden = false;
-  $('artGrid').hidden = false;
   $('btnArtMore').hidden = true;
   setArtStatus('');
   $('artModal').hidden = false; // 先显示弹窗，再开始加载（loadArt 会检查"弹窗是否已关闭"）
+  if (pendingLookup) {
+    // 还在用 Steam AppID 找 SGDB 游戏：先把弹窗显示出来并给一句提示（见 §10 #83）
+    $('artTabs').hidden = true;
+    $('artFilters').hidden = true;
+    $('artGrid').hidden = false;
+    showArtGridMessage(T('正在定位 SteamGridDB 游戏…'));
+    return;
+  }
+  $('artTabs').hidden = false;
+  $('artFilters').hidden = false;
+  $('artGrid').hidden = false;
   renderArtTabs();
   loadArt(true);
 }
@@ -3083,10 +3202,18 @@ function syncSettingsControls(ui) {
   document.querySelectorAll('#setAccent .swatch').forEach((b) => b.classList.toggle('active', b.dataset.value === (ui.accent || 'cyan')));
 }
 
-async function saveUi(patch) {
+/** 保存 UI 偏好。`opts.coverOnly` = 只原地更新封面（切换「显示」类型用），**不整片重建**卡片 */
+async function saveUi(patch, opts) {
   const r = await post('/api/settings', { ui: patch });
   applyUi(r.ui);
-  render();
+  if (opts && opts.coverOnly) {
+    // 防"快速连点被旧响应回滚"：以用户最后一次点击为准（见 §10 #86）
+    if (opts.want) state.showType = opts.want;
+    applyShowType();
+    if (opts.want && String(r.ui.showType) !== String(opts.want)) post('/api/settings', { ui: { showType: opts.want } });
+  } else {
+    render();
+  }
   // 仅当详情弹窗本来就开着时，才刷新它（避免切主题时误弹出详情）
   if (state.detail && !$('detailModal').hidden) openDetail(state.detail.appid);
 }
@@ -3121,7 +3248,7 @@ async function loadStorage() {
     const el = $('storageInfo');
     if (el)
       el.textContent =
-        T('默认图缓存') + ' ' + fmtBytes(s.cacheBytes) + ' · ' + T('备份') + ' ' + fmtBytes(s.backupBytes) + ' · ' + T('临时') + ' ' + fmtBytes(s.tmpBytes) + (s.dataDir ? T('（数据目录：') + s.dataDir + '）' : '');
+        T('默认图缓存') + ' ' + fmtBytes(s.cacheBytes) + ' · ' + T('缩略图') + ' ' + fmtBytes(s.thumbBytes) + ' · ' + T('备份') + ' ' + fmtBytes(s.backupBytes) + ' · ' + T('临时') + ' ' + fmtBytes(s.tmpBytes) + (s.dataDir ? TP('（数据目录：{0}）', s.dataDir) : '');
     // 库内艺术图占用明细（回答"我的库为什么这么大"）
     const u = $('artUsage');
     if (u) {
@@ -3140,7 +3267,7 @@ async function loadStorage() {
           parts.push(TP('{0} {1} 张 / {2}', T(TYPE_LABELS[t] || t), r.n, fmtBytes(bytes)));
         }
         for (const r of rows) if (!order.includes(r.type)) total += Number(r.bytes || 0) + Number(r.preview || 0);
-        u.textContent = T('库内艺术图占用：') + fmtBytes(total) + '　（' + parts.join(' · ') + '）';
+        u.textContent = TP('库内艺术图占用：{0}（{1}）', fmtBytes(total), parts.join(' · '));
       }
     }
   } catch (e) {
@@ -3149,6 +3276,12 @@ async function loadStorage() {
 }
 
 async function openSettings(tab) {
+  // ⚡ 先把面板显示出来，再去取数据（接口已全部异步化，不会阻塞界面）。
+  // 以前是"等 4 个接口都回来了才显示" → 用户点设置后要盯着不动的界面（见 §10 #79）。
+  switchSettingsTab(tab || state.settingsTab || 'general');
+  $('settingsModal').hidden = false;
+  if ($('storageInfo')) $('storageInfo').textContent = T('计算中…');
+  applyI18n();
   const s = await api('/api/status');
   $('dbFile').textContent = s.dbFile;
   if ($('aboutVersion')) $('aboutVersion').textContent = s.version || '—';
@@ -3169,6 +3302,9 @@ async function openSettings(tab) {
   $('apiKey').placeholder = st.hasApiKey ? T('已保存：') + st.apiKeyMasked + T('（留空则不修改）') : T('粘贴 SteamGridDB API Key');
   $('sgdbState').textContent = st.hasApiKey ? '· ' + T('已绑定') + ' ' + st.apiKeyMasked : '· ' + T('未绑定');
   if ($('allowInsecureTLS')) $('allowInsecureTLS').checked = st.allowInsecureTls !== false;
+  state.thumbsOn = st.thumbs !== false;
+  if ($('setThumbs')) $('setThumbs').checked = state.thumbsOn;
+  setThumbHint();
   const acc = await loadSteamAccount();
   const local = (acc.localUsers || [])[0];
   $('steamId').value = local ? local.steamId64 : '';
@@ -3238,6 +3374,200 @@ function renderSteamAccounts(acc) {
     dl.innerHTML = (acc.localUsers || [])
       .map((u) => `<option value="${esc(u.steamId64)}">${esc(u.persona || '')} (${esc(u.accountName || '')})</option>`)
       .join('');
+  }
+}
+
+/* ---------------- 显示用缩略图（渲染端生成 → 服务端落盘缓存；见 §10 #88） ----------------
+ *
+ * 目的：库里可能有单张几十 MB 的大图，而卡片只有 150~430px 宽 —— 直接解码原图会有几百毫秒的尖峰。
+ * 做法：**在渲染端**用 `createImageBitmap(blob, {resizeWidth})`（Chromium 能"按缩略尺寸解码"，
+ * 又快又不占用主进程）生成缩略图 → 交给后端原子落盘 → 之后 `/asset?w=` 直接命中缩略图。
+ *
+ * **没有任何持久化任务状态**：缓存文件在=做好了；重开软件只会重新问一次"缺哪些"，
+ * 所以不存在"退出后待办丢失/卡在旧状态"的问题（这是用户明确担心的点）。
+ */
+const thumbWarm = { running: false, total: 0, done: 0, ok: 0, failed: 0, skipped: 0 };
+const sleepMs = (ms) => new Promise((r) => setTimeout(r, ms));
+/** 用户最后一次操作的时间：后台生成要"看用户脸色"——用户一动就让路（见 §10 #88） */
+let lastUserAct = 0;
+function markUserAct() {
+  lastUserAct = Date.now();
+}
+
+/** 缩略图宽度只取几个**固定档位**：避免"窗口稍微一变就要全部重生成"（否则缓存等于白做）
+ *  —— 把需要的宽度**向上吸附**到最近的档位，档位之间差异不影响观感（见 §10 #88）。 */
+const THUMB_STEPS = [384, 512, 768, 1024, 1400];
+function snapThumbW(need) {
+  for (const s of THUMB_STEPS) if (need <= s) return s;
+  return THUMB_STEPS[THUMB_STEPS.length - 1];
+}
+
+/** 当前窗口 + 卡片大小下，卡片实际需要多宽的图（含 HiDPI 与 25% 余量）
+ *  —— 保证"卡片调到最大"时也不会模糊（见 §10 #88）。 */
+function computeThumbW() {
+  const grid = $('grid');
+  const avail = grid && grid.clientWidth ? grid.clientWidth : Math.max(600, window.innerWidth - 340);
+  let cardMin = parseFloat(getComputedStyle(document.body).getPropertyValue('--card-min'));
+  if (!cardMin || Number.isNaN(cardMin)) cardMin = 190;
+  const gap = 18;
+  const cols = Math.max(1, Math.floor((avail + gap) / (cardMin + gap)));
+  const cardW = (avail - gap * (cols - 1)) / cols;
+  const dpr = Math.max(1, Math.min(3, window.devicePixelRatio || 1));
+  return snapThumbW(Math.ceil(cardW * dpr * 1.25)); // 1.25 余量 + 吸附档位
+}
+
+/** 当前**屏幕上正在显示**的图（后台补齐时优先做这些，用户立刻受益；见 §10 #88）
+ *  注意：不能用"所有卡片"——每张卡片在生成期就设了 src，必须按几何位置筛出真正可见的。 */
+function visibleArtKeys() {
+  const set = new Set();
+  try {
+    const vh = window.innerHeight;
+    document.querySelectorAll('#grid .card').forEach((card) => {
+      const r = card.getBoundingClientRect();
+      if (r.bottom < 0 || r.top > vh) return; // 屏幕外
+      const m = card.querySelector('.thumb img, .thumb video');
+      if (!m) return;
+      const u = m.currentSrc || m.src || '';
+      const m1 = /[?&]appid=([^&]*)/.exec(u);
+      const m2 = /[?&]file=([^&]*)/.exec(u);
+      if (m1 && m2) set.add(decodeURIComponent(m1[1]) + '|' + decodeURIComponent(m2[1]));
+    });
+  } catch (e) {
+    /* ignore */
+  }
+  return set;
+}
+
+function setThumbHint(done) {
+  const el = $('thumbHint');
+  if (!el) return;
+  if (thumbWarm.running) {
+    el.textContent = TP('正在生成缩略图 {0}/{1}…', thumbWarm.done, Math.max(thumbWarm.total, thumbWarm.done));
+    return;
+  }
+  if (done && thumbWarm.ok > 0) {
+    el.textContent = TP('已生成 {0} 张（下次浏览更快）', thumbWarm.ok);
+    return;
+  }
+  if (!state.thumbsOn) el.textContent = T('缩略图已在设置里关闭');
+  else el.textContent = '';
+}
+
+/** 生成一张（失败就跳过，绝不影响界面） */
+async function makeOneThumb(it, w) {
+  try {
+    const res = await fetch(assetUrl(it.appid, it.file, w), { cache: 'force-cache' });
+    if (!res.ok) throw new Error('http ' + res.status);
+    if (res.headers.get('X-Thumb') === '1') {
+      thumbWarm.ok++; // 已经是缩略图（别人/上次生成好了）
+      return;
+    }
+    const blob = await res.blob();
+    if (!blob.size) throw new Error('empty');
+    const keepAlpha = it.type === 'logo' || it.type === 'icon'; // 透明通道不能丢 → PNG
+    // 先按**原始尺寸**解码一次：拿自然宽度
+    // ⚠️ 不放大：原图比目标还小就标记"不需要缩略图"，绝不做放大（那才是真模糊；见 §10 #88）
+    const full = await createImageBitmap(blob);
+    const natW = full.width || 0;
+    if (!natW || natW <= Math.round(w * 1.05)) {
+      if (full.close) full.close();
+      thumbWarm.skipped++;
+      await post('/api/thumbs/save', { appid: it.appid, file: it.file, w, skip: true });
+      return;
+    }
+    const outW = Math.min(w, natW);
+    const outH = Math.max(1, Math.round((full.height / natW) * outW));
+    const canvas = document.createElement('canvas');
+    canvas.width = outW;
+    canvas.height = outH;
+    const ctx = canvas.getContext('2d');
+    if (!keepAlpha) {
+      ctx.fillStyle = '#000';
+      ctx.fillRect(0, 0, outW, outH);
+    }
+    ctx.drawImage(full, 0, 0, outW, outH);
+    if (full.close) full.close();
+    const wantType = keepAlpha ? 'image/png' : 'image/jpeg';
+    // **异步**编码：绝不在渲染主线程上同步编码（否则会和滚动/点击抢时间）
+    const out = canvas.convertToBlob
+      ? await canvas.convertToBlob({ type: wantType, quality: 0.86 })
+      : await new Promise((r) => canvas.toBlob(r, wantType, 0.86));
+    if (!out || !out.size) throw new Error('encode failed');
+    // 缩了反而更大（原图本来就不大）→ 通知后端"这张不需要缩略图"（写 .skip 标记，避免下次再试）
+    if (out.size >= blob.size * 0.9) {
+      thumbWarm.skipped++;
+      await post('/api/thumbs/save', { appid: it.appid, file: it.file, w, skip: true });
+      return;
+    }
+    const r = await fetch(
+      `/api/thumbs/save?appid=${encodeURIComponent(it.appid)}&file=${encodeURIComponent(it.file)}&w=${w}`,
+      { method: 'POST', headers: { 'Content-Type': out.type || wantType }, body: out }
+    );
+    const j = await r.json().catch(() => ({}));
+    if (j && j.ok) thumbWarm.ok++;
+    else thumbWarm.failed++;
+  } catch (e) {
+    thumbWarm.failed++;
+  }
+}
+
+/** 后台补齐当前宽度下缺失的缩略图（可随时关闭软件；下次打开自动继续，因为只是"看文件在不在"） */
+async function warmThumbs(interactive) {
+  if (!state.thumbsOn) {
+    if (interactive) toast(T('缩略图已在设置里关闭'));
+    return;
+  }
+  if (thumbWarm.running) {
+    if (interactive) toast(T('正在生成缩略图…'));
+    return;
+  }
+  const w = state.thumbW;
+  thumbWarm.running = true;
+  thumbWarm.done = 0;
+  thumbWarm.ok = 0;
+  thumbWarm.failed = 0;
+  thumbWarm.skipped = 0;
+  thumbWarm.total = 0;
+  setThumbHint();
+  try {
+    for (let round = 0; round < 40; round++) {
+      const r = await api('/api/thumbs/missing?w=' + w);
+      if (!r || !r.enabled) break;
+      const items = r.items || [];
+      if (!items.length) break;
+      // 优先做"当前屏幕上正在显示"的那些（用户立刻受益），其余排后面
+      const vis = visibleArtKeys();
+      items.sort((a, b) => (vis.has(a.appid + '|' + a.file) ? 0 : 1) - (vis.has(b.appid + '|' + b.file) ? 0 : 1));
+      thumbWarm.total = thumbWarm.done + items.length;
+      setThumbHint();
+      for (const it of items) {
+        if (state.thumbW !== w) break; // 窗口/卡片大小变了 → 本轮作废（下次按新宽度补齐）
+        // 用户正在操作（滚动/点击/按键）→ **先让路**，绝不和用户抢流畅度
+        while (Date.now() - lastUserAct < 1200) {
+          if (state.thumbW !== w) break;
+          await sleepMs(250);
+        }
+        await makeOneThumb(it, w);
+        thumbWarm.done++;
+        setThumbHint();
+        await sleepMs(50); // 轻微让路，别把 CPU/磁盘占满
+      }
+      if (state.thumbW !== w) break;
+    }
+  } catch (e) {
+    /* 出错就停：没有任何持久状态，下次再点/再开会继续 */
+  } finally {
+    thumbWarm.running = false;
+    thumbWarm.total = Math.max(thumbWarm.total, thumbWarm.done);
+    setThumbHint(true);
+    if (interactive) toast(TP('已生成 {0} 张缩略图（下次浏览更快）', thumbWarm.ok));
+    // 生成完 → 原地换一遍封面，让当前视图立刻用上缩略图
+    try {
+      applyShowType();
+    } catch (e) {
+      /* ignore */
+    }
+    loadStorage();
   }
 }
 
@@ -3316,6 +3646,39 @@ function bind() {
   $('btnCleanCache').addEventListener('click', () => doStorageClean('cache', T('默认图缓存')));
   $('btnCleanBackups').addEventListener('click', () => doStorageClean('backups', T('备份')));
   $('btnCleanTmp').addEventListener('click', () => doStorageClean('tmp', T('临时文件')));
+
+  // 「显示用缩略图」：开关 + 手动生成 + 窗口尺寸变化时更新所需宽度（见 §10 #88）
+  if ($('setThumbs')) {
+    $('setThumbs').addEventListener('change', async () => {
+      state.thumbsOn = $('setThumbs').checked;
+      await post('/api/settings', { thumbs: state.thumbsOn });
+      setThumbHint();
+      render(); // 立刻换回原图 / 用上缩略图
+      if (state.thumbsOn) warmThumbs(true).catch(() => {});
+    });
+  }
+  if ($('btnWarmThumbs')) $('btnWarmThumbs').addEventListener('click', () => warmThumbs(true).catch(() => {}));
+  // 记录"用户正在操作"（后台生成缩略图时会据此让路）
+  ['wheel', 'pointerdown', 'keydown', 'touchstart', 'scroll', 'input'].forEach((ev0) =>
+    window.addEventListener(ev0, markUserAct, { passive: true, capture: true })
+  );
+  let thumbResizeTimer = 0;
+  window.addEventListener('resize', () => {
+    clearTimeout(thumbResizeTimer);
+    thumbResizeTimer = setTimeout(() => {
+      const w = computeThumbW();
+      if (w !== state.thumbW) {
+        state.thumbW = w;
+        try {
+          applyShowType(); // 只在原位换封面（不整片重建）
+        } catch (e) {
+          /* ignore */
+        }
+        // 宽度档位变了 → 让后台按新宽度继续补齐（自愈；没有持久状态，随时可中断）
+        if (state.thumbsOn && !thumbWarm.running) warmThumbs(false).catch(() => {});
+      }
+    }, 500);
+  });
 
   $('btnAdd').addEventListener('click', openManual);
   $('btnSearchAdd').addEventListener('click', () => openAdd());
@@ -3636,9 +3999,10 @@ function bind() {
       $('showDdMenu').hidden = true;
       if (v === state.showType) return;
       state.showType = v;
-      document.body.dataset.show = v;
-      syncShowUi();
-      saveUi({ showType: v });
+      applyShowType(); // 立刻原地生效：不重建卡片、图片走缓存，不卡
+      // 卡片尺寸随类型变化 → 需要的缩略图宽度可能也变了：让后台按新宽度继续补齐（自愈，随时可中断）
+      if (state.thumbsOn && !thumbWarm.running) setTimeout(() => warmThumbs(false).catch(() => {}), 800);
+      saveUi({ showType: v }, { coverOnly: true, want: v }); // 后台保存（以用户最后一次点击为准）
     })
   );
   $('grid').addEventListener('click', (e) => {
@@ -3778,12 +4142,15 @@ async function enterApp() {
   }
   const st = await api('/api/settings');
   applyUi(st.ui);
+  state.thumbsOn = st.thumbs !== false; // 「显示用缩略图」开关（见 §10 #88）
   await loadSteamAccount();
   await loadLibrary();
   await loadCategories();
   updateRecycleCount();
   pollSync(); // 默认图同步进度
   pollNames(false); // 中文名进度
+  // 界面稳定后，在**后台**补齐缺失的缩略图（没有持久状态，重开只会继续补齐；不阻塞任何操作）
+  if (state.thumbsOn) setTimeout(() => warmThumbs(false).catch(() => {}), 6000);
 }
 
 function wsErr(msg) {

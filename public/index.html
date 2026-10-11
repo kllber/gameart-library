@@ -330,8 +330,16 @@
                 <button class="btn ghost" id="btnCleanBackups">清理备份</button>
                 <button class="btn ghost" id="btnCleanTmp">清理临时文件</button>
               </div>
-              <p class="hint">缓存/临时文件都在上面的数据目录内，可用按钮释放空间；清理缓存/备份不影响 .gameart 库里的艺术作品。</p>
+              <p class="hint">缓存/临时文件都在上面的数据目录内，可用按钮释放空间；清理缓存/备份不影响 .gameart 库里的艺术作品（缩略图也会一起清掉，之后会自动重新生成）。</p>
               <p class="hint" id="artUsage"></p>
+            </div>
+            <div class="field">
+              <label class="check"><input type="checkbox" id="setThumbs" checked /><span class="check-label">图片缩略图（浏览更流畅）</span></label>
+              <div class="row-inline">
+                <button class="btn ghost" id="btnWarmThumbs">生成缩略图（后台）</button>
+                <span class="hint" id="thumbHint"></span>
+              </div>
+              <p class="hint">为大图生成"显示用缩略图"，滚动与切换显示类型更顺滑（存在缓存目录里，可随缓存一起清理；<b>不会改动库里的原图</b>）。生成过程<b>没有任何"待办状态"</b>：中途关掉软件，下次打开会自动继续补齐。</p>
             </div>
           </section>
 

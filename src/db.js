@@ -171,7 +171,14 @@ function getDb() {
   } catch (e) {
     /* ignore */
   }
-  // 迁移：把旧的"外置图片文件"读进数据库 BLOB（一次性，幂等）
+  // 索引：按 (appid, file) 查单张图（/asset、/preview 每张图都会查一次）。
+  // 没有索引时是"整表扫描 + 逐行比 appid/file"，图多时明显拖慢图片接口。
+  try {
+    db.exec('CREATE INDEX IF NOT EXISTS idx_art_appid_file ON art(appid, file)');
+  } catch (e) {
+    /* ignore */
+  }
+  // 迁移：旧的"外置图片文件"读进数据库 BLOB（一次性，幂等）
   try {
     migrateFilesToBlob();
   } catch (e) {
@@ -377,6 +384,7 @@ function purgeGame(appid) {
 
 /* ---------------- art ---------------- */
 
+/** 列表查询一律用 ART_COLS（不含 data） */
 function listArt(appid) {
   return getDb().prepare(`SELECT ${ART_COLS} FROM art WHERE appid = ? ORDER BY sort ASC, id ASC`).all(String(appid));
 }
@@ -579,11 +587,41 @@ function addGameCategories(appids, categoryIds) {
   return n;
 }
 
-/** 艺术图占用明细（按类型）——用于 设置→库文件 说明"库为什么这么大" */
+/** 生成"显示用缩略图"时要遍历的图（只取元数据，**绝不带 BLOB**；见 §10 #88） */
+function listArtForThumbs() {
+  return getDb().prepare('SELECT DISTINCT appid, file, type, mime, LENGTH(data) AS bytes FROM art WHERE file IS NOT NULL').all();
+}
+
+/** 艺术图占用明细（按类型）——用于 设置→库文件 说明"库为什么这么大" *
+ * ⚠️ 性能坑（v1.2.1）：**绝不要**写成 `SELECT type, SUM(LENGTH(data)) FROM art GROUP BY type`！
+ * 实测（1425 行 / 471MB BLOB）：整表 GROUP BY **约 2.6 秒**（SQLite 为分组要物化 BLOB），
+ * 而**按类型分开查（WHERE type=?）只要 4~6ms**（它只要记录头里的长度，不必读 BLOB 内容）。
+ * 这个查询原本挂在 `/api/storage` 上 → 每次打开设置/清理缓存都把后端主进程（= Electron 主进程）
+ * 阻塞 3 秒以上，用户看到的是"整个软件卡死"。见 §10 #79。 */
+const ART_TYPE_ORDER = ['portrait', 'grid', 'hero', 'logo', 'icon'];
 function artTypeStats() {
-  return getDb()
-    .prepare('SELECT type, COUNT(*) AS n, SUM(LENGTH(data)) AS bytes, SUM(COALESCE(LENGTH(preview),0)) AS preview FROM art GROUP BY type')
-    .all();
+  const d = getDb();
+  const stmt = d.prepare(
+    'SELECT COUNT(*) AS n, SUM(LENGTH(data)) AS bytes, SUM(COALESCE(LENGTH(preview),0)) AS preview FROM art WHERE type = ?'
+  );
+  const out = [];
+  let known = new Set(ART_TYPE_ORDER);
+  for (const t of ART_TYPE_ORDER) {
+    const r = stmt.get(t);
+    if (r && r.n) out.push({ type: t, n: r.n, bytes: Number(r.bytes || 0), preview: Number(r.preview || 0) });
+  }
+  // 兜底：库里若存在非标准类型（历史数据/异常），也用同样的"按类型查"补上
+  try {
+    for (const row of d.prepare('SELECT DISTINCT type FROM art').all()) {
+      const t = row && row.type;
+      if (!t || known.has(t)) continue;
+      const r = stmt.get(t);
+      if (r && r.n) out.push({ type: t, n: r.n, bytes: Number(r.bytes || 0), preview: Number(r.preview || 0) });
+    }
+  } catch (e) {
+    /* ignore */
+  }
+  return out;
 }
 
 function listCategories() {
@@ -697,4 +735,5 @@ module.exports = {
   setCategoryOrder,
   addGameCategories,
   artTypeStats,
+  listArtForThumbs,
 };

@@ -24,6 +24,7 @@ const steamapi = require('./steamapi');
 const defaultart = require('./defaultart');
 const workspace = require('./workspace');
 const fileassoc = require('./fileassoc');
+const platform = require('./platform');
 
 /** 是否允许"证书失败时回退为不校验证书"（默认开：公司代理/自签证书环境否则抓不到 SGDB 图）。 */
 function allowInsecureTls() {
@@ -74,7 +75,7 @@ const PUBLIC_DIR = path.join(ROOT, 'public');
 const HOST = '127.0.0.1';
 const PORT = Number(process.env.PORT || 5178);
 /** 版本号单一来源：前端从 /api/status 读取，避免多处硬编码对不上 */
-const APP_VERSION = 'v1.2.0';
+const APP_VERSION = 'v1.2.1';
 
 const MIME = {
   '.html': 'text/html; charset=utf-8',
@@ -101,14 +102,16 @@ function sendJson(res, code, obj) {
   res.end(body);
 }
 
-function sendFile(res, full, mime) {
+function sendFile(res, full, mime, maxAge) {
   fs.readFile(full, (err, data) => {
     if (err) {
       res.writeHead(404);
       res.end('Not found');
       return;
     }
-    res.writeHead(200, { 'Content-Type': mime || 'application/octet-stream', 'Content-Length': data.length });
+    const head = { 'Content-Type': mime || 'application/octet-stream', 'Content-Length': data.length };
+    if (maxAge) head['Cache-Control'] = 'private, max-age=' + Number(maxAge);
+    res.writeHead(200, head);
     res.end(data);
   });
 }
@@ -122,7 +125,13 @@ function sniffImageMime(buf) {
   return null;
 }
 
-function sendImageAuto(res, full) {
+/**
+ * 按文件头识别图片类型并返回图片；`maxAge`（秒）会给响应加 `Cache-Control`。
+ * 为什么要缓存：主页/详情/选图器里的图片全部走本接口，而**库内图片是"文件名唯一、内容不变"**的
+ * （新图 = 新文件名），所以可以放心让浏览器缓存。没有缓存头时，Chromium 每次重渲染/滚动回来
+ * 都要重新下载整张图（几百张、单张可达几十 MB）→ 滚动卡顿、切换显示类型卡顿、偶发白屏。见 §10 #81。
+ */
+function sendImageAuto(res, full, maxAge) {
   fs.readFile(full, (err, data) => {
     if (err) {
       res.writeHead(404);
@@ -130,7 +139,9 @@ function sendImageAuto(res, full) {
       return;
     }
     const mime = sniffImageMime(data) || MIME[path.extname(full).toLowerCase()] || 'application/octet-stream';
-    res.writeHead(200, { 'Content-Type': mime, 'Content-Length': data.length });
+    const head = { 'Content-Type': mime, 'Content-Length': data.length };
+    if (maxAge) head['Cache-Control'] = 'private, max-age=' + Number(maxAge);
+    res.writeHead(200, head);
     res.end(data);
   });
 }
@@ -186,49 +197,130 @@ function cleanupFiles(arr) {
   }
 }
 
+/* ---------------- 显示用缩略图（**渲染端生成，服务端只负责缓存**；见 §10 #88） ----------------
+ *
+ * 为什么这么做：库里可能有单张几十 MB 的大图，卡片只有 150~430px 宽，**首次解码**这种大图
+ * 会出现几百毫秒的单帧尖峰（实测大背景模式 536ms）。
+ *
+ * 设计要点（**刻意排除"同步漏洞"**）：
+ *   · **没有持久化队列、没有任务状态** —— 缓存文件在就是"做好了"，不在就是"没做"。重开软件
+ *     只会重新问一次"缺哪些"，**永远不会像以前那样"待办丢了/卡在旧状态"**。
+ *   · **生成放在渲染进程**（Chromium 的 `createImageBitmap({resizeWidth})` 可以**按缩略尺寸解码**，
+ *     比主进程 `nativeImage` 更快，且**完全不阻塞 Electron 主进程**）。
+ *   · GET `/asset` **只读缓存**：命中就用缩略图，没命中**立刻返回原图**（绝不等待生成、绝不失败）。
+ *   · 服务端只接受"库内真实存在的图"，且**原子写入**（临时文件 + rename）。
+ */
+const THUMB_DIR = path.join(DATA_DIR, 'cache', 'thumbs');
+const THUMB_MIN_W = 320;
+const THUMB_MAX_W = 1400;
+
+function thumbsEnabled() {
+  try {
+    return db.getSetting('thumbs') !== '0';
+  } catch (e) {
+    return true;
+  }
+}
+/** 可安全用于文件名的字符（防目录穿越） */
+function safeName(s) {
+  return String(s || '').replace(/[^0-9A-Za-z._-]/g, '_').slice(0, 140);
+}
+/** 动图 / 矢量不缩（要保动画与矢量） */
+function skipThumbMime(mime) {
+  return /webp|gif|svg/i.test(String(mime || ''));
+}
+/** 需要保留透明通道的类型 → PNG；其余 → JPEG */
+function thumbExt(type) {
+  return String(type) === 'icon' || String(type) === 'logo' ? '.png' : '.jpg';
+}
+function thumbFile(appid, file, w, ext) {
+  return path.join(THUMB_DIR, safeName(appid) + '__' + safeName(file) + '__w' + w + ext);
+}
+function readThumb(appid, file, w, ext) {
+  try {
+    const buf = fs.readFileSync(thumbFile(appid, file, w, ext));
+    return buf && buf.length ? buf : null;
+  } catch (e) {
+    return null;
+  }
+}
+
 /* ---------------- 存储占用 / 清理 ---------------- */
+const fsp = require('fs').promises;
 const CACHE_DIR = path.join(DATA_DIR, 'cache', 'defaultart');
 const BACKUP_DIR = path.join(DATA_DIR, 'backup');
-function dirSize(dir) {
+
+/**
+ * 递归统计目录大小（**异步**）。
+ * 为什么要异步：这个函数在 Electron 里跑在**主进程**上，同步版（`fs.readdirSync/statSync`）
+ * 遇到几万个文件（例如备份里有 30 份 × 多账号 × 上千张图）会把主进程阻塞好几秒 →
+ * **整个软件窗口卡死无响应**。异步版把等待交还给事件循环，界面照常响应。见 §10 #80。
+ */
+async function dirSize(dir) {
   let total = 0;
+  let entries;
   try {
-    for (const e of fs.readdirSync(dir, { withFileTypes: true })) {
-      const p = path.join(dir, e.name);
+    entries = await fsp.readdir(dir, { withFileTypes: true });
+  } catch (e) {
+    return 0;
+  }
+  for (const e of entries) {
+    const p = path.join(dir, e.name);
+    if (e.isDirectory()) {
+      total += await dirSize(p);
+    } else if (e.isFile()) {
       try {
-        total += e.isDirectory() ? dirSize(p) : fs.statSync(p).size;
+        total += (await fsp.stat(p)).size;
+      } catch (er) {
+        /* 文件可能刚被删 */
+      }
+    }
+  }
+  return total;
+}
+
+// 占用结果缓存（默认 30 秒）：目录大小变化慢，没必要每次打开设置都重新遍历一遍
+let _storageCache = { t: 0, info: null };
+const STORAGE_TTL_MS = 30 * 1000;
+
+async function storageInfo(force) {
+  if (!force && _storageCache.info && Date.now() - _storageCache.t < STORAGE_TTL_MS) return _storageCache.info;
+  const [cacheBytes, backupBytes, tmpBytes, thumbBytes] = await Promise.all([
+    dirSize(CACHE_DIR),
+    dirSize(BACKUP_DIR),
+    dirSize(TMP_DIR),
+    dirSize(THUMB_DIR),
+  ]);
+  _storageCache = { t: Date.now(), info: { dataDir: DATA_DIR, tmpDir: TMP_DIR, cacheBytes, backupBytes, tmpBytes, thumbBytes } };
+  return _storageCache.info;
+}
+
+/** 清理（**异步**，理由同 dirSize；见 §10 #80） */
+async function cleanStorage(target) {
+  const rm = async (dir) => {
+    let n = 0;
+    let entries;
+    try {
+      entries = await fsp.readdir(dir);
+    } catch (e) {
+      return 0;
+    }
+    for (const e of entries) {
+      try {
+        await fsp.rm(path.join(dir, e), { recursive: true, force: true });
+        n++;
       } catch (er) {
         /* ignore */
       }
     }
-  } catch (e) {
-    /* ignore */
-  }
-  return total;
-}
-function storageInfo() {
-  return { dataDir: DATA_DIR, tmpDir: TMP_DIR, cacheBytes: dirSize(CACHE_DIR), backupBytes: dirSize(BACKUP_DIR), tmpBytes: dirSize(TMP_DIR) };
-}
-function cleanStorage(target) {
-  const rm = (dir) => {
-    let n = 0;
-    try {
-      for (const e of fs.readdirSync(dir)) {
-        try {
-          fs.rmSync(path.join(dir, e), { recursive: true, force: true });
-          n++;
-        } catch (er) {
-          /* ignore */
-        }
-      }
-    } catch (e) {
-      /* ignore */
-    }
     return n;
   };
   const removed = {};
-  if (target === 'cache' || target === 'all') removed.cache = rm(CACHE_DIR);
-  if (target === 'backups' || target === 'all') removed.backups = rm(BACKUP_DIR);
-  if (target === 'tmp' || target === 'all') removed.tmp = rm(TMP_DIR);
+  if (target === 'cache' || target === 'all') removed.cache = await rm(CACHE_DIR);
+  if (target === 'thumbs' || target === 'cache' || target === 'all') removed.thumbs = await rm(THUMB_DIR);
+  if (target === 'backups' || target === 'all') removed.backups = await rm(BACKUP_DIR);
+  if (target === 'tmp' || target === 'all') removed.tmp = await rm(TMP_DIR);
+  _storageCache = { t: 0, info: null }; // 清理后强制重算
   return removed;
 }
 
@@ -243,6 +335,35 @@ function readBody(req) {
         resolve({});
       }
     });
+  });
+}
+
+/** 读**原始二进制** body（缩略图上传用；见 §10 #88）。超过 maxBytes 直接中断，避免被塞爆内存。 */
+function readRawBody(req, maxBytes) {
+  const cap = maxBytes || 4 * 1024 * 1024;
+  return new Promise((resolve) => {
+    const chunks = [];
+    let size = 0;
+    let done = false;
+    const finish = (v) => {
+      if (done) return;
+      done = true;
+      resolve(v);
+    };
+    req.on('data', (c) => {
+      size += c.length;
+      if (size > cap) {
+        try {
+          req.destroy();
+        } catch (e) {
+          /* ignore */
+        }
+        return finish(null);
+      }
+      chunks.push(c);
+    });
+    req.on('end', () => finish(Buffer.concat(chunks)));
+    req.on('error', () => finish(null));
   });
 }
 
@@ -559,6 +680,10 @@ async function runFetchPreviews() {
 let applyJob = { running: false, total: 0, done: 0, ok: 0, failed: 0, steamRunning: false, error: null };
 const wsleep = (ms) => new Promise((r) => setTimeout(r, ms));
 
+/* ---- appid → SteamGridDB 游戏（内存缓存 10 分钟，避免反复等网络；见 §10 #83） ---- */
+const sgdbGameCacheMem = new Map();
+const SGDB_GAME_TTL_MS = 10 * 60 * 1000;
+
 async function runApplyBatch(appids) {
   if (applyJob.running) return;
   applyJob = { running: true, total: appids.length, done: 0, ok: 0, failed: 0, steamRunning: false, error: null };
@@ -658,7 +783,7 @@ async function handleApi(req, res, pathname, query) {
 
   // ---- .gameart 文件关联（Windows 注册表 / Linux freedesktop）----
   if (pathname === '/api/assoc/status') {
-    return sendJson(res, 200, fileassoc.getStatus());
+    return sendJson(res, 200, await fileassoc.getStatus());
   }
   if (pathname === '/api/assoc/register' && req.method === 'POST') {
     try {
@@ -734,6 +859,9 @@ async function handleApi(req, res, pathname, query) {
   // 未打开库时，其余接口提示需要选择库
   if (!db.currentDbPath()) return sendJson(res, 409, { needWorkspace: true });
 
+  // Windows：Steam 安装路径以前是**同步**跑 `reg query`（阻塞主进程 → 窗口卡顿）。
+  // 现在改为"启动时异步预取 + 这里 await"（非阻塞、且只做一次；见 §10 #82）。
+  await platform.prefetchSteamCandidates();
   const s = ensureState();
 
   if (pathname === '/api/status') {
@@ -823,14 +951,113 @@ async function handleApi(req, res, pathname, query) {
     return sendJson(res, 200, { ok: true, results, ownedCount: db.ownedCount(), namesFixed });
   }
 
-  // 存储占用 / 清理
+  // 存储占用 / 清理（异步 + 缓存，避免遍历几万个文件时阻塞主进程 → 窗口卡死；见 §10 #80）
   if (pathname === '/api/storage' && req.method === 'GET') {
-    return sendJson(res, 200, { ...storageInfo(), artStats: db.artTypeStats() });
+    const info = await storageInfo();
+    return sendJson(res, 200, { ...info, artStats: db.artTypeStats() });
   }
   if (pathname === '/api/storage/clean' && req.method === 'POST') {
     const body = await readBody(req);
-    const removed = cleanStorage(String(body.target || ''));
-    return sendJson(res, 200, { ok: true, removed, ...storageInfo(), artStats: db.artTypeStats() });
+    const removed = await cleanStorage(String(body.target || ''));
+    const info = await storageInfo(true);
+    return sendJson(res, 200, { ok: true, removed, ...info, artStats: db.artTypeStats() });
+  }
+
+  /* ---- 显示用缩略图（渲染端生成 → 这里只负责"问缺哪些"和"存下来"；见 §10 #88） ---- */
+  // 问：当前宽度下，哪些图还没有缩略图？（**只读**，拿不到就返回空，前端会跳过）
+  if (pathname === '/api/thumbs/missing' && req.method === 'GET') {
+    if (!thumbsEnabled()) return sendJson(res, 200, { enabled: false, items: [] });
+    const w = Math.min(THUMB_MAX_W, Math.max(THUMB_MIN_W, Math.round(Number(query.get('w')) || 0)));
+    const items = [];
+    try {
+      for (const a of db.listArtForThumbs()) {
+        if (!a.file || skipThumbMime(a.mime)) continue;
+        // 小于 150KB 的原图本来就不必缩（缩了也不会明显变小）→ 直接不列出来，省掉一次下载+解码
+        if (Number(a.bytes || 0) < 150 * 1024) continue;
+        const dest = thumbFile(a.appid, a.file, w, thumbExt(a.type));
+        let ok = false;
+        try {
+          ok = fs.statSync(dest).size > 0;
+        } catch (e) {
+          ok = false;
+        }
+        if (!ok) {
+          // ".skip" = 上次渲染端判定"原图本来就不大，缩了也不变小" → 别再反复试
+          let skip = false;
+          try {
+            skip = fs.statSync(dest + '.skip').isFile();
+          } catch (e) {
+            skip = false;
+          }
+          if (!skip) {
+            items.push({ appid: String(a.appid), file: a.file, type: a.type, bytes: Number(a.bytes || 0) });
+            if (items.length >= 300) break; // 分批，前端循环取
+          }
+        }
+      }
+    } catch (e) {
+      return sendJson(res, 200, { enabled: true, w, items: [], error: e.message });
+    }
+    return sendJson(res, 200, { enabled: true, w, items });
+  }
+
+  // 存：渲染端把生成好的缩略图交过来 → 原子落盘
+  if (pathname === '/api/thumbs/save' && req.method === 'POST') {
+    // 支持两种提交：① **原始字节**（推荐：浏览器用 `canvas.convertToBlob()` **异步**编码后直接 POST，
+    // 不在渲染主线程上同步编码，避免和 UI 抢时间）② JSON {dataUrl}（兼容旧路径）
+    const ctype = String(req.headers['content-type'] || '');
+    let appid = '';
+    let file = '';
+    let w = 0;
+    let skip = false;
+    let buf = null;
+    if (/^image\//i.test(ctype)) {
+      appid = String(query.get('appid') || '');
+      file = String(query.get('file') || '');
+      w = Math.round(Number(query.get('w')) || 0);
+      buf = await readRawBody(req);
+    } else {
+      const body = await readBody(req);
+      appid = String(body.appid || '');
+      file = String(body.file || '');
+      w = Math.round(Number(body.w) || 0);
+      skip = !!body.skip;
+      const m = String(body.dataUrl || '').match(/^data:image\/(jpeg|jpg|png);base64,(.+)$/i);
+      if (m) {
+        try {
+          buf = Buffer.from(m[2], 'base64');
+        } catch (e) {
+          buf = null;
+        }
+      }
+    }
+    if (!appid || !file || !(w >= THUMB_MIN_W && w <= THUMB_MAX_W)) return sendJson(res, 400, { error: '参数不足' });
+    const row = db.getArtByFile(appid, file); // 只接受"库内真实存在的图"
+    if (!row) return sendJson(res, 404, { error: 'no such art' });
+    if (skipThumbMime(row.mime)) return sendJson(res, 200, { ok: false, skipped: 'animated' });
+    const ext = thumbExt(row.type);
+    // 渲染端判定"原图本来就不大，缩了也不变小" → 只留一个 .skip 标记，避免以后反复尝试（幂等、可随缓存清掉）
+    if (skip) {
+      try {
+        fs.mkdirSync(THUMB_DIR, { recursive: true });
+        fs.writeFileSync(thumbFile(appid, file, w, ext) + '.skip', '1');
+      } catch (e) {
+        /* ignore */
+      }
+      return sendJson(res, 200, { ok: false, skipped: 'too-small' });
+    }
+    if (!buf || !buf.length || buf.length > 3 * 1024 * 1024) return sendJson(res, 400, { error: '图片数据异常' });
+    const dest = thumbFile(appid, file, w, ext);
+    try {
+      fs.mkdirSync(THUMB_DIR, { recursive: true });
+      const tmp = dest + '.tmp' + Date.now();
+      fs.writeFileSync(tmp, buf);
+      fs.renameSync(tmp, dest); // 原子替换：绝不会留下半个文件
+    } catch (e) {
+      return sendJson(res, 500, { ok: false, error: e.message });
+    }
+    _storageCache = { t: 0, info: null };
+    return sendJson(res, 200, { ok: true, bytes: buf.length });
   }
 
   if (pathname === '/api/library' && req.method === 'GET') {
@@ -938,6 +1165,7 @@ async function handleApi(req, res, pathname, query) {
       hasApiKey: !!k,
       apiKeyMasked: k ? k.slice(0, 4) + '••••' + k.slice(-4) : null,
       allowInsecureTls: allowInsecureTls(),
+      thumbs: thumbsEnabled(),
       ui: getUiSettings(),
     });
   }
@@ -949,11 +1177,12 @@ async function handleApi(req, res, pathname, query) {
       db.setSetting('allow_insecure_tls', body.allowInsecureTls ? '1' : '0');
       syncTlsSetting();
     }
+    if ('thumbs' in body) db.setSetting('thumbs', body.thumbs ? '1' : '0');
     if (body.ui && typeof body.ui === 'object') {
       const next = { ...getUiSettings(), ...body.ui };
       db.setSetting('ui', JSON.stringify(next));
     }
-    return sendJson(res, 200, { ok: true, ui: getUiSettings() });
+    return sendJson(res, 200, { ok: true, ui: getUiSettings(), thumbs: thumbsEnabled() });
   }
 
   if (pathname === '/api/library/detect') {
@@ -1191,8 +1420,13 @@ async function handleApi(req, res, pathname, query) {
     const appid = query.get('appid');
     const key = db.getSetting('sgdb_api_key');
     if (!appid || !key) return sendJson(res, 200, { game: null });
+    // 内存缓存（10 分钟）：同一次会话里反复点「从 SteamGridDB 添加」不必每次等网络（见 §10 #83）
+    const ck = String(appid);
+    const hit = sgdbGameCacheMem.get(ck);
+    if (hit && Date.now() - hit.t < SGDB_GAME_TTL_MS) return sendJson(res, 200, { game: hit.game, cached: true });
     try {
       const g = await sgdb.getGameBySteamAppid(appid, key);
+      sgdbGameCacheMem.set(ck, { t: Date.now(), game: g });
       return sendJson(res, 200, { game: g });
     } catch (e) {
       return sendJson(res, 200, { game: null, error: e.message });
@@ -1317,7 +1551,7 @@ async function handleApi(req, res, pathname, query) {
     }
     // 统一存入 .gameart：默认图也作为你的资产登记
     registerDefaultArt(s, appid, type, r);
-    return sendImageAuto(res, r.path);
+    return sendImageAuto(res, r.path, 3600);
   }
 
   if (pathname === '/api/defaultart/sources') {
@@ -1450,13 +1684,47 @@ async function handleApi(req, res, pathname, query) {
     }
     const row = db.getArtByFile(appid, file);
     if (row && row.data) {
+      // ① 有"显示用缩略图"就直接用它（卡片只有 150~430px 宽，用几十 MB 的原图会解码卡顿；见 §10 #88）
+      const wantW = Math.min(THUMB_MAX_W, Math.max(0, Math.round(Number(query.get('w')) || 0)));
+      if (wantW >= THUMB_MIN_W && thumbsEnabled() && !skipThumbMime(row.mime)) {
+        const ext = thumbExt(row.type);
+        const thumb = readThumb(appid, file, wantW, ext);
+        if (thumb) {
+          res.writeHead(200, {
+            'Content-Type': ext === '.png' ? 'image/png' : 'image/jpeg',
+            'Content-Length': thumb.length,
+            'Cache-Control': 'private, max-age=86400',
+            'X-Thumb': '1',
+          });
+          res.end(thumb);
+          return;
+        }
+      }
+      // ② 没有缩略图（或不需要）→ **立刻**返回原图，绝不等待生成
       const buf = Buffer.isBuffer(row.data) ? row.data : Buffer.from(row.data);
-      res.writeHead(200, { 'Content-Type': row.mime || sniffImageMime(buf) || 'image/png', 'Content-Length': buf.length });
+      let maxAge = 86400;
+      if (wantW >= THUMB_MIN_W && thumbsEnabled() && !skipThumbMime(row.mime)) {
+        // 这个 URL 以后可能会变成"缩略图"版本 → 只给 30 秒短缓存，让浏览器稍后自动取到缩略图；
+        // 若已判定"不需要缩略图"（.skip 标记），则内容不会再变 → 可以长缓存。（见 §10 #88）
+        let skipped = false;
+        try {
+          skipped = fs.statSync(thumbFile(appid, file, wantW, thumbExt(row.type)) + '.skip').isFile();
+        } catch (e) {
+          skipped = false;
+        }
+        if (!skipped) maxAge = 30;
+      }
+      res.writeHead(200, {
+        'Content-Type': row.mime || sniffImageMime(buf) || 'image/png',
+        'Content-Length': buf.length,
+        // 文件名唯一（新图=新文件名）→ 可长缓存；避免滚动/切换显示类型时反复重新下载；见 §10 #81
+        'Cache-Control': 'private, max-age=' + maxAge,
+      });
       res.end(buf);
       return;
     }
     // 兜底：旧的外置文件
-    return sendImageAuto(res, db.assetPath(appid, file));
+    return sendImageAuto(res, db.assetPath(appid, file), 3600);
   }
 
   if (pathname === '/preview') {
@@ -1475,7 +1743,7 @@ async function handleApi(req, res, pathname, query) {
         'Content-Type': row.preview_mime || 'video/webm',
         'Content-Length': buf.length,
         'Accept-Ranges': 'none',
-        'Cache-Control': 'no-cache',
+        'Cache-Control': 'private, max-age=86400', // 预览文件名唯一、内容不变 → 可长缓存（见 §10 #81）
       });
       res.end(buf);
       return;
@@ -1499,7 +1767,7 @@ async function handleApi(req, res, pathname, query) {
       return;
     }
     const full = path.join(gridDir, path.basename(file));
-    return sendFile(res, full, MIME[path.extname(full).toLowerCase()]);
+    return sendFile(res, full, MIME[path.extname(full).toLowerCase()], 3600);
   }
 
   res.writeHead(404);
@@ -1547,6 +1815,16 @@ server.on('error', (err) => {
 });
 
 server.listen(PORT, HOST, () => {
+  // 后台预热：解析 appinfo.vdf / 扫描 grid 是一次性的重活（主进程内同步执行）。
+  // 放在**启动时**做，别等用户第一次点开设置或库时才卡（见 §10 #82）。
+  platform.prefetchSteamCandidates().catch(() => {});
+  setTimeout(() => {
+    try {
+      ensureState();
+    } catch (e) {
+      /* ignore */
+    }
+  }, 200);
   let paths = '';
   try {
     paths = ensureState().steamPaths.join(' | ') || '(未检测到)';

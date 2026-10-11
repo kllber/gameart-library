@@ -18,7 +18,7 @@ const fs = require('fs');
 const os = require('os');
 const path = require('path');
 const crypto = require('crypto');
-const { execFileSync, execFile } = require('child_process');
+const { execFile } = require('child_process');
 const platform = require('./platform');
 
 const EXT = '.gameart';
@@ -70,25 +70,31 @@ function runAsync(cmd, args, timeout) {
 
 /* ================= Windows ================= */
 
-function reg(args) {
-  try {
-    return execFileSync('reg', args, { encoding: 'utf8', windowsHide: true });
-  } catch (e) {
-    return null;
-  }
+/** **异步** 版注册表操作（`reg`）：
+ *  ⚠️ 以前用 `execFileSync`，它会在**Electron 主进程**里同步阻塞 100~300ms/次；
+ *  设置页每次打开都要查 2 次 → 窗口卡顿。凡是"外部进程"一律异步（见 §10 #79/#82）。 */
+function regAsync(args, timeout) {
+  return new Promise((resolve) => {
+    try {
+      execFile('reg', args, { encoding: 'utf8', windowsHide: true, timeout: timeout || 8000 }, (err, stdout) => {
+        resolve(err ? null : String(stdout || ''));
+      });
+    } catch (e) {
+      resolve(null);
+    }
+  });
 }
-
-function regAdd(key, value, type) {
-  return reg(['add', key, '/ve', '/t', type || 'REG_SZ', '/d', value, '/f']);
+async function regAdd(key, value, type) {
+  return regAsync(['add', key, '/ve', '/t', type || 'REG_SZ', '/d', value, '/f']);
 }
-function regQueryDefault(key) {
-  const out = reg(['query', key, '/ve']);
+async function regQueryDefault(key) {
+  const out = await regAsync(['query', key, '/ve']);
   if (!out) return null;
   const m = out.match(/REG_SZ\s+(.+)/i);
   return m ? m[1].trim() : null;
 }
-function regDelete(key) {
-  return reg(['delete', key, '/f']);
+async function regDelete(key) {
+  return regAsync(['delete', key, '/f']);
 }
 
 /** 运行本程序的可执行文件（便携版用 PORTABLE_EXECUTABLE_FILE，指向用户双击的 exe） */
@@ -129,17 +135,17 @@ function iconPath() {
   }
 }
 
-function windowsStatus() {
-  const ext = regQueryDefault('HKCU\\Software\\Classes\\' + EXT);
-  const cmd = regQueryDefault('HKCU\\Software\\Classes\\' + PROGID + '\\shell\\open\\command');
+async function windowsStatus() {
+  const ext = await regQueryDefault('HKCU\\Software\\Classes\\' + EXT);
+  const cmd = await regQueryDefault('HKCU\\Software\\Classes\\' + PROGID + '\\shell\\open\\command');
   return { supported: true, registered: ext === PROGID && !!cmd, ext, command: cmd, want: computeCommand(), icon: iconPath() };
 }
 
-function registerWindows() {
-  regAdd('HKCU\\Software\\Classes\\' + EXT, PROGID);
-  regAdd('HKCU\\Software\\Classes\\' + PROGID, '游戏艺术库 · GameArt Library 库文件');
-  regAdd('HKCU\\Software\\Classes\\' + PROGID + '\\DefaultIcon', '"' + iconPath() + '"');
-  regAdd('HKCU\\Software\\Classes\\' + PROGID + '\\shell\\open\\command', computeCommand());
+async function registerWindows() {
+  await regAdd('HKCU\\Software\\Classes\\' + EXT, PROGID);
+  await regAdd('HKCU\\Software\\Classes\\' + PROGID, '游戏艺术库 · GameArt Library 库文件');
+  await regAdd('HKCU\\Software\\Classes\\' + PROGID + '\\DefaultIcon', '"' + iconPath() + '"');
+  await regAdd('HKCU\\Software\\Classes\\' + PROGID + '\\shell\\open\\command', computeCommand());
   // 清理 Windows 图标缓存 + 通知刷新，让新图标尽快生效
   try {
     const local = process.env.LOCALAPPDATA;
@@ -164,17 +170,17 @@ function registerWindows() {
         /* ignore */
       }
     }
-    execFileSync('ie4uinit.exe', ['-show'], { windowsHide: true });
+    await runAsync('ie4uinit.exe', ['-show'], 10000); // 通知刷新（异步，别阻塞主进程；见 §10 #79/#82）
   } catch (e) {
     /* ignore */
   }
   return windowsStatus();
 }
 
-function unregisterWindows() {
-  regDelete('HKCU\\Software\\Classes\\' + PROGID);
-  if (regQueryDefault('HKCU\\Software\\Classes\\' + EXT) === PROGID) {
-    regDelete('HKCU\\Software\\Classes\\' + EXT);
+async function unregisterWindows() {
+  await regDelete('HKCU\\Software\\Classes\\' + PROGID);
+  if ((await regQueryDefault('HKCU\\Software\\Classes\\' + EXT)) === PROGID) {
+    await regDelete('HKCU\\Software\\Classes\\' + EXT);
   }
   return windowsStatus();
 }
@@ -475,7 +481,8 @@ async function createDesktopShortcut() {
 
 /* ================= 对外 ================= */
 
-function getStatus() {
+/** **异步**（Windows 分支要查注册表）：调用方请 `await`。见 §10 #79/#82 */
+async function getStatus() {
   if (platform.IS_WINDOWS) return windowsStatus();
   if (platform.IS_LINUX) return linuxStatus();
   return { supported: false, registered: false };
@@ -499,7 +506,7 @@ async function unregister() {
  */
 async function autoRegister() {
   try {
-    const s = getStatus();
+    const s = await getStatus();
     if (!s.supported) return { ok: false, skipped: 'unsupported' };
     // 已关联、图标在、生成文件也与当前版本一致、命令没变 → 什么都不做；
     // 否则重写一遍（自愈：补装图标 / 修正移动后的路径 / 修正生成文件的笔误）
