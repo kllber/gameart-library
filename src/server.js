@@ -460,26 +460,50 @@ function afterOpen() {
 /* runAutoBootstrap 已移除：绑定账号不再自动导入游戏；补全默认图改用 runFillFor(库内游戏)。 */
 
 /* ---- 拉取简体中文游戏名（后台任务） ---- */
-let nameJob = { running: false, total: 0, done: 0, ok: 0, failed: 0 };
+let nameJob = { running: false, total: 0, done: 0, ok: 0, failed: 0, none: 0 };
 const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
+
+/** "商店确认没有中文名"的 appid 列表（存库内，避免每次重复请求同一批游戏 —— 见 §10 #71） */
+function readNameZhNone() {
+  try {
+    const a = JSON.parse(db.getSetting('name_zh_none') || '[]');
+    return Array.isArray(a) ? a.map(String) : [];
+  } catch (e) {
+    return [];
+  }
+}
+function writeNameZhNone(list) {
+  try {
+    db.setSetting('name_zh_none', JSON.stringify(Array.from(new Set((list || []).map(String)))));
+  } catch (e) {
+    /* ignore */
+  }
+}
 
 async function runFetchZhNames() {
   if (nameJob.running) return;
-  const list = db.gamesMissingNameZh();
-  nameJob = { running: true, total: list.length, done: 0, ok: 0, failed: 0 };
+  const noneSet = new Set(readNameZhNone());
+  const list = db.gamesMissingNameZh().filter((g) => !noneSet.has(String(g.appid)));
+  nameJob = { running: true, total: list.length, done: 0, ok: 0, failed: 0, none: 0 };
   for (const g of list) {
+    const appid = String(g.appid);
     try {
-      const nz = await defaultart.getStoreNameZh(String(g.appid));
+      const nz = await defaultart.getStoreNameZh(appid);
       if (nz) {
-        db.setGameNameZh(String(g.appid), nz);
+        db.setGameNameZh(appid, nz);
         nameJob.ok++;
+      } else {
+        // 商店确认没有中文名 → 记住，下次不再重复请求（否则会永远"0/20"）
+        noneSet.add(appid);
+        nameJob.none++;
       }
     } catch (e) {
-      nameJob.failed++;
+      nameJob.failed++; // 网络失败 → 不记，下次重试
     }
     nameJob.done++;
     await sleep(1000); // 节流，避免触发 Steam 商店限流
   }
+  writeNameZhNone([...noneSet]);
   nameJob.running = false;
 }
 
@@ -1079,7 +1103,8 @@ async function handleApi(req, res, pathname, query) {
   }
 
   if (pathname === '/api/library/import-progress') {
-    return sendJson(res, 200, { ...importJob });
+    // pending = 还没补完的队列长度（这样即使"自动续跑"还没启动，界面也能提示"待续 N"）
+    return sendJson(res, 200, { ...importJob, pending: readFillQueue().length });
   }
 
   if (pathname === '/api/library/fetch-names' && req.method === 'POST') {

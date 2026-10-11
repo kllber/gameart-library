@@ -50,6 +50,8 @@ const I18N_EN = {
   '立即补全默认图': 'Fill default art now',
   '立即拉取中文名': 'Fetch Chinese names now',
   '已开始拉取中文名（后台进行）': 'Fetching Chinese names in the background.',
+  '待续 {0}': '{0} pending',
+  '，{0} 款商店暂无中文名（已跳过）': ' · {0} have no Chinese name on the Store (skipped)',
   '未绑定': 'Not bound',
   // 搜索
   '搜索库中游戏…': 'Search your games…',
@@ -2677,20 +2679,28 @@ async function syncNow() {
   pollSync();
 }
 
-function pollSync() {
+function pollSync(tries) {
   api('/api/library/import-progress')
     .then((p) => {
       const el = $('syncStatus');
       const btn = $('btnQuickFill');
-      if (btn) btn.classList.toggle('spin', !!p.running);
+      const running = !!p.running;
+      const pending = p.pending || 0;
+      if (btn) btn.classList.toggle('spin', running);
       if (!el) return;
-      if (p.running) {
+      if (running) {
         el.textContent = `${p.done}/${p.total}`;
-        setTimeout(pollSync, 1200);
-      } else {
-        el.textContent = p.total ? T('完成') : '—';
-        loadLibrary();
+        setTimeout(() => pollSync(0), 1200);
+        return;
       }
+      if (pending > 0) {
+        // 有排队的待办（或"打开库自动续跑"还没启动）→ 显示"待续 N"并继续观察一会
+        el.textContent = TP('待续 {0}', pending);
+        if ((tries || 0) < 8) setTimeout(() => pollSync((tries || 0) + 1), 1000);
+        return;
+      }
+      el.textContent = p.total ? T('完成') : '—';
+      loadLibrary();
     })
     .catch(() => {});
 }
@@ -2706,13 +2716,13 @@ function pollNames(showHint) {
       if (h && showHint)
         h.textContent = p.running
           ? TP('进行中 {0}/{1}（已获取 {2}）', p.done, p.total, p.ok)
-          : TP('完成：共 {0} 款，已获取中文名 {1} 个', p.total, p.ok);
+          : TP('完成：共 {0} 款，已获取中文名 {1} 个', p.total, p.ok) +
+            (p.none ? TP('，{0} 款商店暂无中文名（已跳过）', p.none) : '');
       if (p.running) setTimeout(() => pollNames(showHint), 1500);
       else if (showHint) loadLibrary();
     })
     .catch(() => {});
 }
-
 function pollPreviews() {
   api('/api/library/preview-progress')
     .then((p) => {

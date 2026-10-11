@@ -219,15 +219,24 @@ async function resolveDefault(steamPaths, appid, type) {
 
 module.exports = { resolveDefault, resolveFromSgdb, resolveFor, getStoreNameZh };
 
-/** 从 Steam 商店取简体中文游戏名；没有则返回 null */
+/**
+ * 从 Steam 商店取简体中文游戏名。
+ * 返回值语义（重要，调用方据此决定"要不要记住"）：
+ *   · 字符串 = 取到了中文名；
+ *   · `null` = **商店确认这个游戏没有中文名**（可以安全地"记住、不再重复请求"）；
+ *   · **抛错** = 网络/接口失败（**不要**记住，下次还要重试）。
+ */
 async function getStoreNameZh(appid) {
+  let j;
   try {
-    const j = await httpsGetJson('https://store.steampowered.com/api/appdetails?appids=' + appid + '&l=schinese&filters=basic');
-    const d = j && j[appid] && j[appid].data;
-    return d && d.name ? d.name : null;
+    j = await httpsGetJson('https://store.steampowered.com/api/appdetails?appids=' + appid + '&l=schinese&filters=basic');
   } catch (e) {
-    return null;
+    const err = new Error('商店请求失败：' + ((e && e.message) || e));
+    err.transient = true;
+    throw err;
   }
+  const d = j && j[appid] && j[appid].data;
+  return d && d.name ? d.name : null;
 }
 
 /** 统一入口：本地/缓存 → CDN → 商店 → SteamGridDB 兜底。返回 { path, source } 或 null */
