@@ -289,6 +289,14 @@
             <h3>库文件</h3>
             <div class="field"><label>当前库文件</label><code id="dbFile">—</code></div>
             <div class="field"><label>库文件大小</label><div id="dbSize">—</div></div>
+            <div class="field">
+              <label>默认图补全</label>
+              <div class="row-inline">
+                <button class="btn ghost" id="btnFillDefaults">补全默认图（后台）</button>
+                <span class="hint" id="fillHint"></span>
+              </div>
+              <p class="hint">为库里「还没有图」的游戏补上 Steam 默认图；中途关掉软件也没关系，下次打开该库会自动继续。</p>
+            </div>
             <div class="field"><label>数据位置</label><div class="hint">本软件的数据与缓存都放在一个独立的数据目录里，不会散落到系统其它位置。</div></div>
             <div class="field"><button class="btn ghost" id="btnSwitchLib">切换 / 打开其他库文件</button></div>
             <div class="field">

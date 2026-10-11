@@ -326,6 +326,11 @@ const I18N_EN = {
   '关联失败': 'Association failed',
   '取消失败': 'Operation failed',
   '创建桌面快捷方式': 'Create desktop shortcut',
+  '默认图补全': 'Default art fill',
+  '补全默认图（后台）': 'Fill default art (background)',
+  '为库里「还没有图」的游戏补上 Steam 默认图；中途关掉软件也没关系，下次打开该库会自动继续。':
+    'Fetches Steam default artwork for games that have none. You can quit the app anytime — it resumes automatically next time you open this library.',
+  '已开始补全默认图（后台进行，可随时关闭软件）': 'Filling default artwork in the background — you can close the app anytime.',
   '已创建桌面快捷方式：': 'Desktop shortcut created: ',
   '创建失败': 'Failed to create',
   '清理失败': 'Cleanup failed',
@@ -3072,6 +3077,12 @@ function bind() {
     const r = await post('/api/assoc/shortcut', {});
     if (r.ok) toast(T('已创建桌面快捷方式：') + (r.path || ''));
     else toast(r.error || T('创建失败'), true);
+  });
+
+  // 补全默认图（后台；中途关掉软件下次打开会自动继续）
+  $('btnFillDefaults').addEventListener('click', async () => {
+    await syncNow();
+    toast(T('已开始补全默认图（后台进行，可随时关闭软件）'));
   });
 
   // 存储清理
