@@ -74,7 +74,7 @@ const PUBLIC_DIR = path.join(ROOT, 'public');
 const HOST = '127.0.0.1';
 const PORT = Number(process.env.PORT || 5178);
 /** 版本号单一来源：前端从 /api/status 读取，避免多处硬编码对不上 */
-const APP_VERSION = 'v1.0.0';
+const APP_VERSION = 'v1.0.1';
 
 const MIME = {
   '.html': 'text/html; charset=utf-8',
@@ -350,14 +350,47 @@ function importExistingGridArt(s, appid, have) {
   }
 }
 
-/** 只对给定游戏补全（"从 Steam 库添加"导入选中后调用），后台执行 */
+/* ---- 默认图补全：持久化队列（存库内，退出/断电后重开可继续） ---- */
+function readFillQueue() {
+  try {
+    const raw = db.getSetting('fill_queue');
+    const arr = raw ? JSON.parse(raw) : [];
+    return Array.isArray(arr) ? arr.map(String) : [];
+  } catch (e) {
+    return [];
+  }
+}
+function writeFillQueue(list) {
+  try {
+    const clean = Array.from(new Set((list || []).map(String)));
+    db.setSetting('fill_queue', clean.length ? JSON.stringify(clean) : '');
+  } catch (e) {
+    /* ignore */
+  }
+}
+
+/**
+ * 只对给定游戏补全（"从 Steam 库添加"导入选中后调用 / 手动"全库补全"），后台执行。
+ * **会把待办并入库内的持久化队列**：中途关闭软件，下次打开该库时自动继续（见 §6.x / 坑 #69）。
+ */
 async function runFillFor(appids) {
-  if (importJob.running) return;
+  // ① 并入队列（已完成的会被逐个剔除，所以重入总是安全的）
+  const merged = readFillQueue();
+  for (const id of (appids || []).map(String)) if (!merged.includes(id)) merged.push(id);
+  writeFillQueue(merged);
+  if (importJob.running) return; // 已在跑：队列已并入，跑完自然接着做
+
   const s = ensureState();
   const key = db.getSetting('sgdb_api_key');
-  importJob = { running: true, total: appids.length, done: 0, added: 0, imported: 0, failed: 0 };
-  for (const id of appids) {
-    const appid = String(id);
+  const remaining0 = readFillQueue().length;
+  importJob = { running: true, total: remaining0, done: 0, added: 0, imported: 0, failed: 0 };
+
+  let guard = 0;
+  while (true) {
+    const queue = readFillQueue();
+    if (!queue.length) break;
+    if (++guard > 20000) break; // 安全上限
+    const appid = String(queue[0]);
     try {
       if (/^\d+$/.test(appid)) {
         const have = {};
@@ -375,10 +408,53 @@ async function runFillFor(appids) {
     } catch (e) {
       importJob.failed++;
     }
+    // ② 完成一个就从队列里剔除（这样"边做边存"，不会丢进度）
+    writeFillQueue(readFillQueue().filter((x) => x !== appid));
     importJob.done++;
+    importJob.total = importJob.done + readFillQueue().length;
   }
   importJob.running = false;
   db.setSetting('bootstrapped', '1');
+}
+
+/**
+ * 自愈：把库里**名字为空**的 Steam 游戏补上名字。
+ * 数据来源只用 **Steam Web API 的拥有列表**（纯数据库查询，**不触发 Steam 扫描**，所以放在"打开库"里也不卡）。
+ * 历史 bug：导入时只查了 `s.detected`/`appinfo`，没用 `owned_games.name`（见 §10 #70）。
+ * 非 Steam 快捷方式的名字来自 shortcuts.vdf，不在这里猜。
+ */
+function repairGameNames() {
+  try {
+    const owned = new Map(db.listOwnedGames().map((o) => [String(o.appid), o.name]));
+    if (!owned.size) return 0;
+    let fixed = 0;
+    for (const g of db.listGames()) {
+      if (g.name && String(g.name).trim()) continue;
+      if (g.is_non_steam) continue;
+      const nm = owned.get(String(g.appid));
+      if (nm) {
+        db.updateGameName(g.appid, nm);
+        fixed++;
+      }
+    }
+    return fixed;
+  } catch (e) {
+    return 0;
+  }
+}
+
+/**
+ * 打开库后的收尾（**不能阻塞打开请求**）：
+ *  1) 自愈补名字（纯 DB，很快）；
+ *  2) 若上次的默认图补全没跑完 → **稍后自动继续**（后台任务 + 侧栏进度）。
+ */
+function afterOpen() {
+  try {
+    repairGameNames();
+    if (readFillQueue().length) setTimeout(() => runFillFor([]).catch(() => {}), 500);
+  } catch (e) {
+    /* ignore */
+  }
 }
 
 /* runAutoBootstrap 已移除：绑定账号不再自动导入游戏；补全默认图改用 runFillFor(库内游戏)。 */
@@ -516,6 +592,7 @@ async function handleApi(req, res, pathname, query) {
       db.openDatabase(p);
       workspace.addRecent(p);
       syncTlsSetting();
+      afterOpen(); // 打开库后的收尾：补名字 + 续跑未完成的默认图补全（不阻塞）
       return sendJson(res, 200, { ok: true, current: db.currentDbPath() });
     } catch (e) {
       return sendJson(res, 200, { ok: false, error: e.message });
@@ -529,6 +606,7 @@ async function handleApi(req, res, pathname, query) {
       db.openDatabase(p);
       workspace.addRecent(p);
       syncTlsSetting();
+      afterOpen(); // 打开库后的收尾：补名字 + 续跑未完成的默认图补全（不阻塞）
       return sendJson(res, 200, { ok: true, current: db.currentDbPath() });
     } catch (e) {
       return sendJson(res, 200, { ok: false, error: e.message });
@@ -542,6 +620,7 @@ async function handleApi(req, res, pathname, query) {
       db.openDatabase(p);
       workspace.addRecent(p);
       syncTlsSetting();
+      afterOpen(); // 打开库后的收尾：补名字 + 续跑未完成的默认图补全（不阻塞）
       return sendJson(res, 200, { ok: true, current: db.currentDbPath() });
     } catch (e) {
       return sendJson(res, 200, { ok: false, error: e.message });
@@ -715,7 +794,8 @@ async function handleApi(req, res, pathname, query) {
         results.push({ steamId64: a.steam_id64, error: e.message });
       }
     }
-    return sendJson(res, 200, { ok: true, results, ownedCount: db.ownedCount() });
+    const namesFixed = repairGameNames(); // 拥有列表变了 → 顺手把"没名字"的游戏补上（见 §10 #70）
+    return sendJson(res, 200, { ok: true, results, ownedCount: db.ownedCount(), namesFixed });
   }
 
   // 存储占用 / 清理
@@ -859,12 +939,16 @@ async function handleApi(req, res, pathname, query) {
   if (pathname === '/api/library/import' && req.method === 'POST') {
     const body = await readBody(req);
     const appids = Array.isArray(body.appids) ? body.appids.map(String) : [];
+    // 名字优先级：本地扫描到的（非 Steam 快捷方式的名字来自 shortcuts.vdf）
+    //            → **Steam Web API 拥有列表的名字（owned_games.name）** → appinfo.vdf
+    // ⚠️ 少了中间那一项，新库里"没有本地封面、又不在 appinfo"的游戏就会没名字、只显示 AppID（见 §10 #70）
+    const ownedNames = new Map(db.listOwnedGames().map((o) => [String(o.appid), o.name]));
     let imported = 0;
     const failed = [];
     for (const appid of appids) {
       try {
         const d = s.detected.find((x) => x.appid === appid);
-        db.addGame(appid, (d && d.name) || s.names[appid] || null, d ? d.isNonSteam : false);
+        db.addGame(appid, (d && d.name) || ownedNames.get(appid) || s.names[appid] || null, d ? d.isNonSteam : false);
         // 复制该游戏现有封面到库
         const ag = s.artByAppid.get(appid);
         if (ag) {

@@ -1,6 +1,6 @@
 {
   "name": "gameart-library",
-  "version": "1.0.0",
+  "version": "1.0.1",
   "private": true,
   "description": "游戏艺术库 · GameArt Library —— 管理并一键同步游戏自定义艺术作品到 Steam",
   "main": "desktop/main.js",
