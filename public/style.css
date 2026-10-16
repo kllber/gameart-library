@@ -348,6 +348,8 @@ body.dragging-active .card { cursor: grabbing; }
 .thumb.ultra { aspect-ratio: 1920 / 620; }
 .thumb.square { aspect-ratio: 1 / 1; }
 .thumb img, .thumb video { width: 100%; height: 100%; object-fit: cover; display: block; background: var(--media-bg); }
+/* 注：**不要**给卡片图片加淡入动画（实测每条 +2~4ms/帧：淡入期间的半透明图层会拖慢滚动。
+   为了"主机级"的滚动流畅度，宁可让图"直接出现"，也不加过渡；见 §10 #92） */
 
 /* 无竖版时：横图做虚化填充，保持竖版外观 */
 .thumb.fill .thumb-bg {

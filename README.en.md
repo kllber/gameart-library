@@ -7,7 +7,7 @@
 **Collect, back up and one-click apply your custom Steam artwork**
 
 <p>
-  <img alt="version" src="https://img.shields.io/badge/version-1.3.0-blue">
+  <img alt="version" src="https://img.shields.io/badge/version-1.3.1-blue">
   <img alt="license" src="https://img.shields.io/badge/license-Apache--2.0-green">
   <img alt="platform" src="https://img.shields.io/badge/platform-Windows%20%7C%20Linux-0078D6">
   <img alt="SteamOS" src="https://img.shields.io/badge/SteamOS-ready-1A9FFF?logo=steam&logoColor=white">
@@ -21,7 +21,7 @@
 
 <p>
   <a href="https://github.com/kllber/gameart-library/releases/latest">
-    <img src="https://img.shields.io/badge/DOWNLOAD-GameArt%20Library%20v1.3.0-7c5cff?style=for-the-badge&logo=github" alt="Download" />
+    <img src="https://img.shields.io/badge/DOWNLOAD-GameArt%20Library%20v1.3.1-7c5cff?style=for-the-badge&logo=github" alt="Download" />
   </a>
 </p>
 

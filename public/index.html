@@ -349,16 +349,6 @@
           <section class="spanel" data-panel="libstorage" hidden>
             <h3>存储与清理</h3>
             <div class="field">
-              <label>占用总览</label>
-              <div class="hint" id="storageInfo">—</div>
-              <p class="hint">这些缓存/临时文件都在上面的数据目录内，可一键释放空间。</p>
-            </div>
-            <div class="field">
-              <label>库内艺术图占用</label>
-              <div id="artUsageTable"></div>
-              <p class="hint">这是你库里所有艺术图的总大小（含动图预览），不等于库文件大小。</p>
-            </div>
-            <div class="field setting-sec">
               <label>清理</label>
               <div class="row-inline">
                 <button class="btn ghost" id="btnCleanCache">清理默认图缓存</button>
@@ -367,6 +357,17 @@
               </div>
               <p class="hint">清理缓存 / 备份不影响 .gameart 里的艺术作品。</p>
               <p class="hint">缩略图会一起清掉，之后浏览时会自动重新生成。</p>
+            </div>
+            <div class="field setting-sec">
+              <label>占用总览</label>
+              <div class="hint" id="storageInfo">—</div>
+              <p class="hint">上面三个按钮清理的就是这些缓存 / 临时文件。</p>
+              <p class="hint">它们都在上面的数据目录内。</p>
+            </div>
+            <div class="field setting-sec">
+              <label>库内艺术图占用</label>
+              <div id="artUsageTable"></div>
+              <p class="hint">这是你库里所有艺术图的总大小（含动图预览），不等于库文件大小。</p>
             </div>
           </section>
 

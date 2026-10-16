@@ -592,6 +592,15 @@ function listArtForThumbs() {
   return getDb().prepare('SELECT DISTINCT appid, file, type, mime, LENGTH(data) AS bytes FROM art WHERE file IS NOT NULL').all();
 }
 
+/** 修正某张图的真实类型（按文件头识别出来的）——用于自愈"从 Steam grid 导入的动图被当成 png"（见 §10 #90） */
+function setArtMime(appid, file, mime) {
+  try {
+    getDb().prepare('UPDATE art SET mime = ? WHERE appid = ? AND file = ?').run(String(mime), String(appid), String(file));
+  } catch (e) {
+    /* ignore */
+  }
+}
+
 /** 艺术图占用明细（按类型）——用于 设置→库文件 说明"库为什么这么大" *
  * ⚠️ 性能坑（v1.2.1）：**绝不要**写成 `SELECT type, SUM(LENGTH(data)) FROM art GROUP BY type`！
  * 实测（1425 行 / 471MB BLOB）：整表 GROUP BY **约 2.6 秒**（SQLite 为分组要物化 BLOB），
@@ -736,4 +745,5 @@ module.exports = {
   addGameCategories,
   artTypeStats,
   listArtForThumbs,
+  setArtMime,
 };

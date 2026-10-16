@@ -341,6 +341,8 @@ const I18N_EN = {
   '生成过程没有任何「待办状态」：中途关掉软件，下次打开会自动继续补齐。':
     'There is no pending-job state: closing the app simply continues next time.',
   '这些缓存/临时文件都在上面的数据目录内，可一键释放空间。': 'These cache/temp files live in the data folder above; clear them to free space.',
+  '上面三个按钮清理的就是这些缓存 / 临时文件。': 'The three buttons above clear exactly these cache/temp files.',
+  '它们都在上面的数据目录内。': 'They all live in the data folder shown above.',
   '这是你库里所有艺术图的总大小（含动图预览），不等于库文件大小。':
     'Total size of all artwork in this library (including animated previews) — not the .gameart file size.',
   '清理缓存 / 备份不影响 .gameart 里的艺术作品。': 'Clearing the cache/backups does not affect artwork inside .gameart.',
@@ -764,6 +766,11 @@ function pickArt(g, type) {  const arr = g.art[type];
 }
 
 /** 封面候选顺序：自定义竖版 → Steam默认竖版 → 自定义横版 → 自定义大背景 → Steam默认横版 → 自定义Logo */
+/** 动图判断：`image/webp` 或 `image/apng`（`apng` = 我们用来自愈标记"内容是 APNG 动图"的类型） */
+function isAnimatedMime(mime) {
+  return /^image\/(webp|apng)$/i.test(String(mime || ''));
+}
+
 function coverCandidates(g) {
   const out = [];
   const addCustom = (type, tall) => {
@@ -773,7 +780,7 @@ function coverCandidates(g) {
         url: assetUrl(g.appid, row.file),
         tall,
         kind: 'custom',
-        animated: row.mime === 'image/webp',
+        animated: isAnimatedMime(row.mime),
         preview: row.has_preview ? previewUrl(g.appid, row.file) : null,
       });
     }
@@ -819,7 +826,7 @@ function coverForType(g, type) {
       kind: 'custom',
       type: t,
       fit: fitOf(t),
-      animated: row.mime === 'image/webp',
+      animated: isAnimatedMime(row.mime),
       preview: row.has_preview ? previewUrl(g.appid, row.file) : null,
     });
   };
@@ -877,6 +884,44 @@ function placeholderThumb(g) {
   d.className = 'noart placeholder';
   d.textContent = String(g.name || g.appid).trim().slice(0, 1).toUpperCase();
   return d;
+}
+
+/**
+ * 动图封面（**没有** webm 预览时）：让它**动起来**，但只播"屏幕内"的、离屏自动冻结成静帧。
+ * 原理：先把首帧画进 canvas 当 poster；`COVER_ANIM` 名额内的 `play()` 把 src 换回动图、
+ * `pause()` 换回 poster —— 动图 WebP **没有暂停 API**，只能靠换 src 实现"冻结/恢复"（见 §10 #91）。
+ */
+function mountAnimatedImgCover(img, url, order) {
+  const grab = () => {
+    if (img.dataset.poster) return;
+    try {
+      const c = document.createElement('canvas');
+      c.width = img.naturalWidth || 1;
+      c.height = img.naturalHeight || 1;
+      c.getContext('2d').drawImage(img, 0, 0);
+      img.dataset.poster = c.toDataURL('image/png');
+      img.dataset.anim = url;
+      img.src = img.dataset.poster; // 先冻结成静态首帧（省 CPU），进入屏幕内再恢复播放
+      const thumb = img.closest('.thumb');
+      const bg = thumb && thumb.querySelector('.thumb-bg');
+      if (bg) bg.style.backgroundImage = 'url("' + img.dataset.poster + '")';
+      registerCoverAnim(
+        img,
+        order || 0,
+        () => {
+          if (img.dataset.anim) img.src = img.dataset.anim;
+        },
+        () => {
+          if (img.dataset.poster) img.src = img.dataset.poster;
+        }
+      );
+      scheduleCoverAnim();
+    } catch (e) {
+      /* 跨域/失败：保持原动图显示 */
+    }
+  };
+  if (img.complete && img.naturalWidth) grab();
+  else img.addEventListener('load', grab, { once: true });
 }
 
 /**
@@ -1062,7 +1107,9 @@ function buildCoverImg(thumb, cands, g) {
     }
   };
   applySrc(cands[0]);
-  if (cands[0].animated && cands[0].url.startsWith('/')) freezeAnimatedCover(img, cands[0].url);
+  // 动图封面：**有** webm 预览的走 <video>（见 buildCardThumb）；这里处理"没有预览、只能播 webp"的
+  // ——会动，但只播屏幕内的、离屏冻结（见 §10 #91）
+  if (cands[0].animated && cands[0].url.startsWith('/')) mountAnimatedImgCover(img, cands[0].url, 0);
   thumb.appendChild(img);
 }
 
@@ -1933,7 +1980,7 @@ function renderDetail(g, sources) {
         } else {
           registerCoverAnim(media, -(++detailCoverOrder), play, pause); // 详情优先占用"播放名额"
         }
-      } else if (a.mime === 'image/webp') {
+      } else if (isAnimatedMime(a.mime)) {
         freezeAnimatedCover(media, mediaUrl);
       }
       media.addEventListener('click', async () => {
@@ -3531,6 +3578,22 @@ async function makeOneThumb(it, w) {
     }
     const blob = await res.blob();
     if (!blob.size) throw new Error('empty');
+    // 按**内容**再确认一次是不是动图（扩展名和 mime 都不可靠：Steam 上的动图可能叫 .png，内容却是
+    // webp 或 APNG → 缩成缩略图就只剩一帧了）
+    if (blob.size >= 12) {
+      const h = new Uint8Array(await blob.slice(0, Math.min(2048, blob.size)).arrayBuffer());
+      const s = String.fromCharCode.apply(null, h.subarray(0, 4));
+      const isRiff = s === 'RIFF' && String.fromCharCode.apply(null, h.subarray(8, 12)) === 'WEBP';
+      const isPng = h[0] === 0x89 && h[1] === 0x50 && h[2] === 0x4e && h[3] === 0x47;
+      const isGif = s.slice(0, 3) === 'GIF';
+      const text = String.fromCharCode.apply(null, h);
+      const animated = (isRiff && text.indexOf('ANIM') >= 0) || (isPng && text.indexOf('acTL') >= 0) || (isGif && text.indexOf('NETSCAPE2.0') >= 0);
+      if (animated) {
+        thumbWarm.skipped++;
+        await post('/api/thumbs/save', { appid: it.appid, file: it.file, w, skip: true });
+        return;
+      }
+    }
     const keepAlpha = it.type === 'logo' || it.type === 'icon'; // 透明通道不能丢 → PNG
     // 先按**原始尺寸**解码一次：拿自然宽度
     // ⚠️ 不放大：原图比目标还小就标记"不需要缩略图"，绝不做放大（那才是真模糊；见 §10 #88）

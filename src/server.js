@@ -75,7 +75,7 @@ const PUBLIC_DIR = path.join(ROOT, 'public');
 const HOST = '127.0.0.1';
 const PORT = Number(process.env.PORT || 5178);
 /** 版本号单一来源：前端从 /api/status 读取，避免多处硬编码对不上 */
-const APP_VERSION = 'v1.3.0';
+const APP_VERSION = 'v1.3.1';
 
 const MIME = {
   '.html': 'text/html; charset=utf-8',
@@ -213,6 +213,29 @@ function cleanupFiles(arr) {
 const THUMB_DIR = path.join(DATA_DIR, 'cache', 'thumbs');
 const THUMB_MIN_W = 320;
 const THUMB_MAX_W = 1400;
+const THUMB_VER = '2'; // 命名版本：v1 会把"扩展名是 .png、内容却是动图 webp"的封面缩成静帧（§10 #90）→ 升版本并清掉旧缓存
+
+/** 缩略图缓存版本迁移：旧版可能把动图缩成了静帧 → 一次性清空，之后按需重建（幂等、无持久任务状态） */
+function ensureThumbVersion() {
+  try {
+    if (db.getSetting('thumbs_ver') === THUMB_VER) return;
+    try {
+      for (const f of fs.readdirSync(THUMB_DIR)) {
+        try {
+          fs.rmSync(path.join(THUMB_DIR, f), { force: true });
+        } catch (e) {
+          /* ignore */
+        }
+      }
+    } catch (e) {
+      /* 目录不存在也没关系 */
+    }
+    db.setSetting('thumbs_ver', THUMB_VER);
+    _storageCache = { t: 0, info: null };
+  } catch (e) {
+    /* ignore */
+  }
+}
 
 function thumbsEnabled() {
   try {
@@ -227,14 +250,34 @@ function safeName(s) {
 }
 /** 动图 / 矢量不缩（要保动画与矢量） */
 function skipThumbMime(mime) {
-  return /webp|gif|svg/i.test(String(mime || ''));
+  return /webp|gif|svg|apng/i.test(String(mime || ''));
+}
+/**
+ * **内容**是不是"动图"：动图 WebP（有 ANIM 块）/ APNG（PNG 里有 acTL 块）/ 循环 GIF（NETSCAPE2.0）。
+ * 为什么必须按内容判断：Steam 的 grid 目录**只认扩展名**（`.png` 里可能装着 webp，也可能就是 APNG），
+ * 而"动图"一旦被当成静态图缩成缩略图，封面就永远只剩一帧（见 §10 #90）。
+ */
+function isAnimatedContent(buf, mime) {
+  try {
+    if (!buf || !buf.length) return false;
+    const head = buf.slice(0, 4096);
+    const isRiff = head.slice(0, 4).toString('latin1') === 'RIFF' && head.slice(8, 12).toString('latin1') === 'WEBP';
+    if (isRiff || /webp/i.test(String(mime || ''))) return head.indexOf('ANIM') >= 0;
+    const isPng = head[0] === 0x89 && head[1] === 0x50 && head[2] === 0x4e && head[3] === 0x47;
+    if (isPng || /png/i.test(String(mime || ''))) return head.indexOf('acTL') >= 0; // APNG
+    const isGif = head.slice(0, 3).toString('latin1') === 'GIF';
+    if (isGif) return head.indexOf('NETSCAPE2.0') >= 0;
+  } catch (e) {
+    /* ignore */
+  }
+  return false;
 }
 /** 需要保留透明通道的类型 → PNG；其余 → JPEG */
 function thumbExt(type) {
   return String(type) === 'icon' || String(type) === 'logo' ? '.png' : '.jpg';
 }
 function thumbFile(appid, file, w, ext) {
-  return path.join(THUMB_DIR, safeName(appid) + '__' + safeName(file) + '__w' + w + ext);
+  return path.join(THUMB_DIR, 'v' + THUMB_VER + '_' + safeName(appid) + '__' + safeName(file) + '__w' + w + ext);
 }
 function readThumb(appid, file, w, ext) {
   try {
@@ -459,7 +502,8 @@ function importExistingGridArt(s, appid, have) {
           type: t,
           source: 'steam',
           file: it.file,
-          mime: MIME[ext] || 'image/png',
+          // **按文件头判类型**：Steam grid 里的动图扩展名是 .png，内容却是 webp（见 §10 #90）
+          mime: sniffImageMime(buf) || MIME[ext] || 'image/png',
           data: buf,
           url: 'steam:' + it.file,
         });
@@ -572,6 +616,7 @@ function repairGameNames() {
  */
 function afterOpen() {
   try {
+    ensureThumbVersion(); // 缩略图缓存版本迁移（清掉可能把动图缩成静帧的旧缓存；见 §10 #90）
     repairGameNames();
     if (readFillQueue().length) setTimeout(() => runFillFor([]).catch(() => {}), 500);
   } catch (e) {
@@ -976,6 +1021,7 @@ async function handleApi(req, res, pathname, query) {
   // 问：当前宽度下，哪些图还没有缩略图？（**只读**，拿不到就返回空，前端会跳过）
   if (pathname === '/api/thumbs/missing' && req.method === 'GET') {
     if (!thumbsEnabled()) return sendJson(res, 200, { enabled: false, items: [] });
+    ensureThumbVersion();
     const w = Math.min(THUMB_MAX_W, Math.max(THUMB_MIN_W, Math.round(Number(query.get('w')) || 0)));
     const items = [];
     try {
@@ -1056,6 +1102,16 @@ async function handleApi(req, res, pathname, query) {
       return sendJson(res, 200, { ok: false, skipped: 'too-small' });
     }
     if (!buf || !buf.length || buf.length > 3 * 1024 * 1024) return sendJson(res, 400, { error: '图片数据异常' });
+    // 动图（webp / APNG / GIF）**绝不生成缩略图**：缩出来就是静帧，封面永远不动（见 §10 #90）
+    if (isAnimatedContent(buf, sniffImageMime(buf) || row.mime)) {
+      try {
+        fs.mkdirSync(THUMB_DIR, { recursive: true });
+        fs.writeFileSync(thumbFile(appid, file, w, ext) + '.skip', '1');
+      } catch (e) {
+        /* ignore */
+      }
+      return sendJson(res, 200, { ok: false, skipped: 'animated' });
+    }
     const dest = thumbFile(appid, file, w, ext);
     try {
       fs.mkdirSync(THUMB_DIR, { recursive: true });
@@ -1245,7 +1301,8 @@ async function handleApi(req, res, pathname, query) {
                   type,
                   source: 'steam',
                   file: it.file,
-                  mime: MIME[ext] || 'image/png',
+                  // **按文件头判类型**：Steam grid 里的动图扩展名是 .png，内容却是 webp（见 §10 #90）
+                  mime: sniffImageMime(buf) || MIME[ext] || 'image/png',
                   data: buf,
                   url: 'steam:' + it.file,
                 });
@@ -1693,9 +1750,26 @@ async function handleApi(req, res, pathname, query) {
     }
     const row = db.getArtByFile(appid, file);
     if (row && row.data) {
-      // ① 有"显示用缩略图"就直接用它（卡片只有 150~430px 宽，用几十 MB 的原图会解码卡顿；见 §10 #88）
+      const buf = Buffer.isBuffer(row.data) ? row.data : Buffer.from(row.data);
+      // **真实类型按文件头判断**：从 Steam grid 导入的动图扩展名是 `.png`，内容其实是动图 webp
+      // （Steam 只认扩展名）→ 若按扩展名当成 png，就会把动图缩成"静态缩略图"、封面永远不动（见 §10 #90）
+      const sniffed = sniffImageMime(buf);
+      const mime = sniffed || row.mime || 'image/png';
+      const animated = isAnimatedContent(buf, mime);
+      // 自愈：①类型存错的改成真实类型；②"动图但类型不是 webp/apng"的标成 image/apng
+      // （这样前端才知道它是动图、缩略图逻辑也才会一直跳过它；见 §10 #90）
+      const wantMime = animated && !/webp|apng/i.test(String(mime)) ? 'image/apng' : sniffed && sniffed !== row.mime ? sniffed : null;
+      if (wantMime && row.mime !== wantMime) {
+        try {
+          db.setArtMime(appid, file, wantMime);
+        } catch (e) {
+          /* ignore */
+        }
+      }
       const wantW = Math.min(THUMB_MAX_W, Math.max(0, Math.round(Number(query.get('w')) || 0)));
-      if (wantW >= THUMB_MIN_W && thumbsEnabled() && !skipThumbMime(row.mime)) {
+      const wantThumb = wantW >= THUMB_MIN_W && thumbsEnabled() && !skipThumbMime(mime) && !animated;
+      // ① 有"显示用缩略图"就直接用它（卡片只有 150~430px 宽，用几十 MB 的原图会解码卡顿；见 §10 #88）
+      if (wantThumb) {
         const ext = thumbExt(row.type);
         const thumb = readThumb(appid, file, wantW, ext);
         if (thumb) {
@@ -1710,9 +1784,8 @@ async function handleApi(req, res, pathname, query) {
         }
       }
       // ② 没有缩略图（或不需要）→ **立刻**返回原图，绝不等待生成
-      const buf = Buffer.isBuffer(row.data) ? row.data : Buffer.from(row.data);
       let maxAge = 86400;
-      if (wantW >= THUMB_MIN_W && thumbsEnabled() && !skipThumbMime(row.mime)) {
+      if (wantThumb) {
         // 这个 URL 以后可能会变成"缩略图"版本 → 只给 30 秒短缓存，让浏览器稍后自动取到缩略图；
         // 若已判定"不需要缩略图"（.skip 标记），则内容不会再变 → 可以长缓存。（见 §10 #88）
         let skipped = false;
@@ -1724,7 +1797,7 @@ async function handleApi(req, res, pathname, query) {
         if (!skipped) maxAge = 30;
       }
       res.writeHead(200, {
-        'Content-Type': row.mime || sniffImageMime(buf) || 'image/png',
+        'Content-Type': mime,
         'Content-Length': buf.length,
         // 文件名唯一（新图=新文件名）→ 可长缓存；避免滚动/切换显示类型时反复重新下载；见 §10 #81
         'Cache-Control': 'private, max-age=' + maxAge,

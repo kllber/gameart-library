@@ -85,16 +85,25 @@ const SCENES = [
   },
   {
     name: 'settings',
-    wait: 1500,
-    setup: `document.querySelectorAll('.modal').forEach(m=>m.hidden=true); openSettings('appearance'); 'x'`,
+    wait: 2200,
+    // 注意：openSettings() 会从库里读回 ui 并套用（会把我们临时切成的浅色主题盖掉），
+    // 所以要在它完成后再补一次"浅色 + 竖版"，保证整套截图风格一致（见 §16）
+    setup: `document.querySelectorAll('.modal').forEach(m=>m.hidden=true);
+            Promise.resolve(openSettings('appearance')).then(()=>{ applyUi(Object.assign({}, state.ui, {theme:'light', showType:'portrait'})); }); 'x'`,
   },
 ];
 
 (async () => {
+  // 记录用户原始偏好：截图期间临时切"浅色主题 + 竖版显示"（与旧图一致），**截完原样恢复**
+  const orig = JSON.parse(await ev('JSON.stringify(state.ui)'));
+  const origLang = (await ev("localStorage.getItem('gal.lang') || 'zh'")) || 'zh';
   for (const lang of ['zh', 'en']) {
-    // 切换界面语言（全局偏好）
-    await ev(`localStorage.setItem('gal.lang','${lang}'); applyUi(Object.assign({}, state.ui, {lang:'${lang}'})); 'x'`);
-    await sleep(400);
+    // 切换界面语言（全局偏好）+ 浅色主题 + 竖版卡片（只改内存状态，不落库）
+    await ev(
+      `localStorage.setItem('gal.lang','${lang}');` +
+        `applyUi(Object.assign({}, state.ui, {lang:'${lang}', theme:'light', showType:'portrait'})); render(); 'x'`
+    );
+    await sleep(1200);
     for (const sc of SCENES) {
       try {
         await ev('(()=>{' + sc.setup + '})()'); // 包 IIFE，避免多次 evaluate 时 const 重复声明
@@ -107,6 +116,10 @@ const SCENES = [
       console.log(`  ${lang}/${sc.name}.jpg  ${(bytes / 1024).toFixed(0)} KB`);
     }
   }
-  await ev(`document.querySelectorAll('.modal').forEach(m=>m.hidden=true); 'x'`);
+  // 恢复用户的主题 / 显示类型 / 语言 / 排序（内存 + localStorage）
+  await ev(
+    `document.querySelectorAll('.modal').forEach(m=>m.hidden=true); afterModalClose();` +
+      `localStorage.setItem('gal.lang','${origLang}'); applyUi(${JSON.stringify(orig)}); render(); 'x'`
+  );
   console.log('done → ' + OUT);
 })();

@@ -110,6 +110,22 @@ if (process.platform === 'linux') {
   }
 }
 
+// 滚动/合成更顺（见 §10 #92）：
+//   · enable-gpu-rasterization / enable-zero-copy：让 Chromium 用 GPU 光栅化，快速滚动时不易出现
+//     "跟不上"的空白/撕裂带；
+//   · 关掉 CalculateNativeWinOcclusion：Windows 上窗口被判定为"被遮挡"时会节流渲染，
+//     恢复显示时容易闪一下/卡一下（我们是个大列表，最怕这个）。
+// ⚠️ 个别显卡驱动上这些开关可能反而更慢/花屏 → 可用环境变量 GAMEART_NO_GPU_FLAGS=1 关掉（排查用）。
+if (process.env.GAMEART_NO_GPU_FLAGS !== '1') {
+  try {
+    app.commandLine.appendSwitch('enable-gpu-rasterization');
+    app.commandLine.appendSwitch('enable-zero-copy');
+    app.commandLine.appendSwitch('disable-features', 'CalculateNativeWinOcclusion');
+  } catch (e) {
+    /* ignore */
+  }
+}
+
 /** 从命令行参数里找 .gameart 路径（双击关联文件时由系统传入） */
 function pickGameartArg(argv) {
   if (!Array.isArray(argv)) return null;
